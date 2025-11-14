@@ -1,0 +1,187 @@
+terraform {
+  required_version = ">= 1.0"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = "~> 2.23"
+    }
+    helm = {
+      source  = "hashicorp/helm"
+      version = "~> 2.11"
+    }
+  }
+
+  backend "s3" {
+    bucket         = "crypto-analytics-terraform-state"
+    key            = "production/terraform.tfstate"
+    region         = "us-east-1"
+    encrypt        = true
+    dynamodb_table = "crypto-analytics-terraform-locks"
+  }
+}
+
+provider "aws" {
+  region = var.aws_region
+
+  default_tags {
+    tags = {
+      Environment = "production"
+      Project     = "crypto-analytics"
+      ManagedBy   = "opentofu"
+    }
+  }
+}
+
+# VPC Module
+module "vpc" {
+  source = "../../modules/vpc"
+
+  project_name       = var.project_name
+  environment        = var.environment
+  vpc_cidr           = var.vpc_cidr
+  availability_zones = var.availability_zones
+  private_subnets    = var.private_subnets
+  public_subnets     = var.public_subnets
+}
+
+# EKS Module
+module "eks" {
+  source = "../../modules/eks"
+
+  project_name       = var.project_name
+  environment        = var.environment
+  cluster_version    = var.cluster_version
+  vpc_id             = module.vpc.vpc_id
+  private_subnet_ids = module.vpc.private_subnet_ids
+  public_subnet_ids  = module.vpc.public_subnet_ids
+
+  node_groups = var.node_groups
+}
+
+# Route53 Module
+module "route53" {
+  source = "../../modules/route53"
+
+  domain_name = var.domain_name
+  environment = var.environment
+}
+
+# Configure Kubernetes provider
+provider "kubernetes" {
+  host                   = module.eks.cluster_endpoint
+  cluster_ca_certificate = base64decode(module.eks.cluster_ca_certificate)
+
+  exec {
+    api_version = "client.authentication.k8s.io/v1beta1"
+    command     = "aws"
+    args = [
+      "eks",
+      "get-token",
+      "--cluster-name",
+      module.eks.cluster_name
+    ]
+  }
+}
+
+provider "helm" {
+  kubernetes {
+    host                   = module.eks.cluster_endpoint
+    cluster_ca_certificate = base64decode(module.eks.cluster_ca_certificate)
+
+    exec {
+      api_version = "client.authentication.k8s.io/v1beta1"
+      command     = "aws"
+      args = [
+        "eks",
+        "get-token",
+        "--cluster-name",
+        module.eks.cluster_name
+      ]
+    }
+  }
+}
+
+# Install AWS Load Balancer Controller
+resource "helm_release" "aws_load_balancer_controller" {
+  name       = "aws-load-balancer-controller"
+  repository = "https://aws.github.io/eks-charts"
+  chart      = "aws-load-balancer-controller"
+  namespace  = "kube-system"
+  version    = "1.6.2"
+
+  set {
+    name  = "clusterName"
+    value = module.eks.cluster_name
+  }
+
+  set {
+    name  = "serviceAccount.create"
+    value = "true"
+  }
+
+  set {
+    name  = "serviceAccount.name"
+    value = "aws-load-balancer-controller"
+  }
+
+  depends_on = [module.eks]
+}
+
+# Install External DNS
+resource "helm_release" "external_dns" {
+  name       = "external-dns"
+  repository = "https://kubernetes-sigs.github.io/external-dns/"
+  chart      = "external-dns"
+  namespace  = "kube-system"
+  version    = "1.13.1"
+
+  set {
+    name  = "serviceAccount.create"
+    value = "true"
+  }
+
+  set {
+    name  = "serviceAccount.name"
+    value = "external-dns"
+  }
+
+  set {
+    name  = "provider"
+    value = "aws"
+  }
+
+  set {
+    name  = "policy"
+    value = "sync"
+  }
+
+  set {
+    name  = "domainFilters[0]"
+    value = var.domain_name
+  }
+
+  depends_on = [module.eks]
+}
+
+# Install Cert Manager for SSL certificates
+resource "helm_release" "cert_manager" {
+  name       = "cert-manager"
+  repository = "https://charts.jetstack.io"
+  chart      = "cert-manager"
+  namespace  = "cert-manager"
+  version    = "v1.13.2"
+
+  create_namespace = true
+
+  set {
+    name  = "installCRDs"
+    value = "true"
+  }
+
+  depends_on = [module.eks]
+}

@@ -2,6 +2,10 @@
 
 A comprehensive cryptocurrency analytics web application built with React, Redux, TypeScript, Tailwind CSS, GraphQL, Drizzle ORM, and Express.
 
+**Live Demo**: https://cryptoquantlab.com (when deployed)
+
+[![Deploy to AWS](https://img.shields.io/badge/Deploy%20to-AWS%20EKS-orange)](./infrastructure/QUICK_START.md)
+
 ## Features
 
 - **Real-time Crypto Data**: Live cryptocurrency prices, market caps, and trading volumes
@@ -38,6 +42,16 @@ A comprehensive cryptocurrency analytics web application built with React, Redux
 - **Node Cache** - API response caching
 - **Axios** - HTTP client for external APIs
 
+### Infrastructure
+- **AWS EKS** - Kubernetes cluster
+- **OpenTofu/Terraform** - Infrastructure as Code
+- **Docker** - Containerization
+- **Nginx** - Frontend web server
+- **Application Load Balancer** - HTTPS/SSL termination
+- **Route 53** - DNS management
+- **ACM** - SSL/TLS certificates
+- **ECR** - Container registry
+
 ## Project Structure
 
 ```
@@ -61,7 +75,25 @@ crypto-analytics/
 │   │   ├── App.tsx          # Main app component
 │   │   └── main.tsx         # Entry point
 │   ├── package.json
+│   ├── Dockerfile
 │   └── vite.config.ts
+├── infrastructure/
+│   ├── terraform/           # OpenTofu/Terraform configs
+│   │   ├── modules/
+│   │   │   ├── vpc/         # VPC module
+│   │   │   ├── eks/         # EKS cluster module
+│   │   │   └── route53/     # Route53 & ACM module
+│   │   └── environments/
+│   │       └── production/  # Production environment
+│   ├── kubernetes/          # K8s manifests
+│   │   ├── namespace.yaml
+│   │   ├── backend-deployment.yaml
+│   │   ├── frontend-deployment.yaml
+│   │   └── ingress.yaml
+│   ├── scripts/
+│   │   └── deploy.sh        # Deployment script
+│   ├── DEPLOYMENT.md        # Full deployment guide
+│   └── QUICK_START.md       # Quick start guide
 └── README.md
 ```
 
@@ -221,6 +253,42 @@ mutation {
 - **Table Views**: Sortable market data tables
 - **Loading States**: Smooth loading indicators
 - **Error Handling**: User-friendly error messages
+
+## Deployment
+
+### Local Development
+
+See the [Installation](#installation) section below for local development setup.
+
+### Production Deployment to AWS EKS
+
+Deploy the application to AWS using Kubernetes (EKS) with the domain **cryptoquantlab.com**:
+
+**Quick Start:**
+```bash
+# See infrastructure/QUICK_START.md for rapid deployment
+cd infrastructure/scripts
+./deploy.sh
+```
+
+**Full Guide:**
+- [Complete Deployment Guide](./infrastructure/DEPLOYMENT.md) - Detailed step-by-step instructions
+- [Quick Start Guide](./infrastructure/QUICK_START.md) - Fast track deployment
+
+**Infrastructure Includes:**
+- EKS Cluster with auto-scaling node groups
+- Application Load Balancer with SSL/TLS
+- Route 53 DNS management
+- Multi-AZ deployment for high availability
+- Horizontal pod autoscaling (2-10 pods per service)
+- Health checks and monitoring
+
+**Estimated Cost:** ~$250-300/month
+
+**URLs after deployment:**
+- Frontend: https://cryptoquantlab.com
+- API: https://api.cryptoquantlab.com/graphql
+- GraphQL Playground: https://api.cryptoquantlab.com/graphql
 
 ## Data Source
 

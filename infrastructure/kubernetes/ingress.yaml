@@ -1,0 +1,71 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: crypto-analytics
+  namespace: crypto-analytics
+  annotations:
+    # AWS Load Balancer Controller annotations
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+
+    # Certificate
+    alb.ingress.kubernetes.io/certificate-arn: ${CERTIFICATE_ARN}
+
+    # Health check
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: "30"
+    alb.ingress.kubernetes.io/healthcheck-timeout-seconds: "5"
+    alb.ingress.kubernetes.io/healthy-threshold-count: "2"
+    alb.ingress.kubernetes.io/unhealthy-threshold-count: "2"
+
+    # Load balancer attributes
+    alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=60
+
+    # Security
+    alb.ingress.kubernetes.io/security-groups: ${SECURITY_GROUP_ID}
+
+    # Tags
+    alb.ingress.kubernetes.io/tags: Environment=production,Project=crypto-analytics
+
+    # External DNS
+    external-dns.alpha.kubernetes.io/hostname: cryptoquantlab.com,www.cryptoquantlab.com,api.cryptoquantlab.com
+spec:
+  ingressClassName: alb
+  rules:
+  # Main domain - frontend
+  - host: cryptoquantlab.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend
+            port:
+              number: 80
+
+  # www subdomain - frontend
+  - host: www.cryptoquantlab.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend
+            port:
+              number: 80
+
+  # API subdomain - backend
+  - host: api.cryptoquantlab.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: backend
+            port:
+              number: 4000
