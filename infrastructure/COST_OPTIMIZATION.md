@@ -50,7 +50,7 @@ This guide explains how to reduce AWS costs for the Crypto Analytics platform, e
 cd infrastructure/terraform/environments/production
 
 # Use the cost-optimized configuration
-terraform apply -var-file=terraform.tfvars.cost-optimized
+tofu apply -var-file=terraform.tfvars.cost-optimized
 ```
 
 Or set the variable:
@@ -181,7 +181,7 @@ For **low to medium traffic** (< 10,000 requests/day):
 ```bash
 # Use the provided cost-optimized configuration
 cd infrastructure/terraform/environments/production
-terraform apply -var-file=terraform.tfvars.cost-optimized
+tofu apply -var-file=terraform.tfvars.cost-optimized
 ```
 
 This configuration includes:
@@ -333,7 +333,7 @@ If you need to cut costs immediately:
 
 3. **Temporary shutdown:**
    ```bash
-   terraform destroy  # Nuclear option
+   tofu destroy  # Nuclear option
    ```
 
 ## Conclusion

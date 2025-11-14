@@ -7,7 +7,7 @@ This is a condensed guide for deploying Crypto Analytics to AWS. For detailed in
 - AWS CLI configured
 - kubectl installed
 - Docker installed
-- OpenTofu or Terraform installed
+- OpenTofu or OpenTofu installed
 - Domain `cryptoquantlab.com` ready (or update variables)
 
 ## 1. Setup AWS Backend (One-time)
@@ -15,18 +15,18 @@ This is a condensed guide for deploying Crypto Analytics to AWS. For detailed in
 ```bash
 export AWS_REGION=us-east-1
 
-# Create S3 bucket for Terraform state
+# Create S3 bucket for OpenTofu state
 aws s3api create-bucket \
-  --bucket crypto-analytics-terraform-state \
+  --bucket crypto-analytics-opentofu-state \
   --region $AWS_REGION
 
 aws s3api put-bucket-versioning \
-  --bucket crypto-analytics-terraform-state \
+  --bucket crypto-analytics-opentofu-state \
   --versioning-configuration Status=Enabled
 
 # Create DynamoDB table for locks
 aws dynamodb create-table \
-  --table-name crypto-analytics-terraform-locks \
+  --table-name crypto-analytics-opentofu-locks \
   --attribute-definitions AttributeName=LockID,AttributeType=S \
   --key-schema AttributeName=LockID,KeyType=HASH \
   --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5 \
@@ -41,9 +41,9 @@ aws dynamodb create-table \
 cd infrastructure/terraform/environments/production
 
 # Initialize and apply
-terraform init
-terraform plan
-terraform apply
+tofu init
+tofu plan
+tofu apply
 
 # This takes ~15-20 minutes
 ```
@@ -55,9 +55,9 @@ For low traffic applications, use the cost-optimized configuration:
 ```bash
 cd infrastructure/terraform/environments/production
 
-terraform init
-terraform plan -var-file=terraform.tfvars.cost-optimized
-terraform apply -var-file=terraform.tfvars.cost-optimized
+tofu init
+tofu plan -var-file=terraform.tfvars.cost-optimized
+tofu apply -var-file=terraform.tfvars.cost-optimized
 
 # This saves 60-70% on costs!
 ```
@@ -68,7 +68,7 @@ See [COST_OPTIMIZATION.md](./COST_OPTIMIZATION.md) for details.
 
 ```bash
 # Get nameservers
-terraform output route53_name_servers
+tofu output route53_name_servers
 
 # Update your domain registrar to use these nameservers
 # Wait 10-30 minutes for propagation
@@ -126,7 +126,7 @@ kubectl delete namespace crypto-analytics
 
 # Destroy infrastructure
 cd infrastructure/terraform/environments/production
-terraform destroy
+tofu destroy
 ```
 
 ## Costs

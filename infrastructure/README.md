@@ -6,7 +6,7 @@ This directory contains all infrastructure-as-code and deployment configurations
 
 ```
 infrastructure/
-├── terraform/               # OpenTofu/Terraform configurations
+├── terraform/               # OpenTofu/OpenTofu configurations
 │   ├── modules/
 │   │   ├── vpc/            # VPC with multi-AZ networking
 │   │   ├── eks/            # EKS cluster and node groups
@@ -125,7 +125,7 @@ Set up a CI/CD pipeline using:
 - AWS CLI configured
 - kubectl installed
 - Docker installed
-- OpenTofu or Terraform installed
+- OpenTofu or OpenTofu installed
 - Domain ready (cryptoquantlab.com)
 
 ## Estimated Costs
@@ -196,7 +196,7 @@ The infrastructure is designed for high availability:
 ### Backup Strategy
 
 1. **Infrastructure**
-   - Terraform state in S3 (versioned)
+   - OpenTofu state in S3 (versioned)
    - Infrastructure as Code in Git
 
 2. **Application**
@@ -208,7 +208,7 @@ The infrastructure is designed for high availability:
 
 1. **Complete Rebuild**
    ```bash
-   terraform apply
+   tofu apply
    ./scripts/deploy.sh
    ```
 
@@ -234,7 +234,7 @@ Common issues:
 ```bash
 cd terraform/environments/production
 # Edit variables.tf - update cluster_version
-terraform apply
+tofu apply
 ```
 
 ### Update Application
@@ -252,8 +252,8 @@ kubectl set image deployment/backend ...
 ```bash
 cd terraform/environments/production
 # Edit configuration files
-terraform plan
-terraform apply
+tofu plan
+tofu apply
 ```
 
 ## Support

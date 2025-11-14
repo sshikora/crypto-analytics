@@ -49,11 +49,9 @@ This guide covers deploying the Crypto Analytics application to AWS using EKS (E
    kubectl version --client
    ```
 
-3. **OpenTofu or Terraform** (v1.6+ or v1.5+)
+3. **OpenTofu** (v1.6+)
    ```bash
    tofu version
-   # or
-   terraform version
    ```
 
 4. **Docker** (for building images)
@@ -83,25 +81,25 @@ This guide covers deploying the Crypto Analytics application to AWS using EKS (E
 
 ## Step 1: Prepare AWS Account
 
-### 1.1 Create S3 Bucket for Terraform State
+### 1.1 Create S3 Bucket for OpenTofu State
 
 ```bash
 # Set your AWS region
 export AWS_REGION=us-east-1
 
-# Create S3 bucket for Terraform state
+# Create S3 bucket for OpenTofu state
 aws s3api create-bucket \
-  --bucket crypto-analytics-terraform-state \
+  --bucket crypto-analytics-opentofu-state \
   --region $AWS_REGION
 
 # Enable versioning
 aws s3api put-bucket-versioning \
-  --bucket crypto-analytics-terraform-state \
+  --bucket crypto-analytics-opentofu-state \
   --versioning-configuration Status=Enabled
 
 # Enable encryption
 aws s3api put-bucket-encryption \
-  --bucket crypto-analytics-terraform-state \
+  --bucket crypto-analytics-opentofu-state \
   --server-side-encryption-configuration '{
     "Rules": [{
       "ApplyServerSideEncryptionByDefault": {
@@ -115,7 +113,7 @@ aws s3api put-bucket-encryption \
 
 ```bash
 aws dynamodb create-table \
-  --table-name crypto-analytics-terraform-locks \
+  --table-name crypto-analytics-opentofu-locks \
   --attribute-definitions AttributeName=LockID,AttributeType=S \
   --key-schema AttributeName=LockID,KeyType=HASH \
   --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5 \
@@ -132,35 +130,35 @@ If your domain is not yet in Route 53:
 # your domain registrar's nameservers after applying Terraform
 ```
 
-## Step 3: Deploy Infrastructure with OpenTofu/Terraform
+## Step 3: Deploy Infrastructure with OpenTofu
 
-### 3.1 Initialize Terraform
+### 3.1 Initialize OpenTofu
 
 ```bash
 cd infrastructure/terraform/environments/production
 
-# Initialize Terraform
-terraform init
+# Initialize OpenTofu
+tofu init
 ```
 
 ### 3.2 Review and Plan
 
 ```bash
 # Review the plan
-terraform plan
+tofu plan
 
 # Save the plan
-terraform plan -out=tfplan
+tofu plan -out=tfplan
 ```
 
 ### 3.3 Apply Infrastructure
 
 ```bash
 # Apply the infrastructure
-terraform apply tfplan
+tofu apply tfplan
 
 # Or apply without saving plan
-terraform apply
+tofu apply
 
 # This will create:
 # - VPC with public/private subnets across 3 AZs
@@ -183,7 +181,7 @@ terraform apply
 After Terraform completes, get the Route 53 nameservers:
 
 ```bash
-terraform output route53_name_servers
+tofu output route53_name_servers
 ```
 
 Update your domain registrar to use these nameservers. This is required for:
@@ -195,7 +193,7 @@ Update your domain registrar to use these nameservers. This is required for:
 
 ```bash
 # Get the kubectl config command from Terraform output
-terraform output configure_kubectl
+tofu output configure_kubectl
 
 # Or run directly
 aws eks update-kubeconfig \
@@ -445,7 +443,7 @@ kubectl logs -n kube-system deployment/external-dns
 
 # Verify Route 53 records were created
 aws route53 list-resource-record-sets \
-  --hosted-zone-id $(terraform output -raw route53_zone_id)
+  --hosted-zone-id $(tofu output -raw route53_zone_id)
 ```
 
 ### Certificate Issues
@@ -456,7 +454,7 @@ aws acm describe-certificate --certificate-arn $CERTIFICATE_ARN
 
 # Verify DNS validation records exist
 aws route53 list-resource-record-sets \
-  --hosted-zone-id $(terraform output -raw route53_zone_id) \
+  --hosted-zone-id $(tofu output -raw route53_zone_id) \
   --query "ResourceRecordSets[?Type=='CNAME']"
 ```
 
@@ -501,17 +499,17 @@ sleep 300
 
 # Destroy Terraform infrastructure
 cd infrastructure/terraform/environments/production
-terraform destroy
+tofu destroy
 
 # Delete ECR repositories
 aws ecr delete-repository --repository-name crypto-analytics-backend --force
 aws ecr delete-repository --repository-name crypto-analytics-frontend --force
 
 # Delete S3 bucket (if needed)
-aws s3 rb s3://crypto-analytics-terraform-state --force
+aws s3 rb s3://crypto-analytics-opentofu-state --force
 
 # Delete DynamoDB table
-aws dynamodb delete-table --table-name crypto-analytics-terraform-locks
+aws dynamodb delete-table --table-name crypto-analytics-opentofu-locks
 ```
 
 ## Security Best Practices

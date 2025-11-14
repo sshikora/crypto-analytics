@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.0"
+  required_version = ">= 1.6.0"
 
   required_providers {
     aws = {
@@ -17,11 +17,11 @@ terraform {
   }
 
   backend "s3" {
-    bucket         = "crypto-analytics-terraform-state"
-    key            = "production/terraform.tfstate"
+    bucket         = "crypto-analytics-opentofu-state"
+    key            = "production/opentofu.tfstate"
     region         = "us-east-1"
     encrypt        = true
-    dynamodb_table = "crypto-analytics-terraform-locks"
+    dynamodb_table = "crypto-analytics-opentofu-locks"
   }
 }
 

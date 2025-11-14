@@ -44,7 +44,7 @@ A comprehensive cryptocurrency analytics web application built with React, Redux
 
 ### Infrastructure
 - **AWS EKS** - Kubernetes cluster
-- **OpenTofu/Terraform** - Infrastructure as Code
+- **OpenTofu** - Infrastructure as Code
 - **Docker** - Containerization
 - **Nginx** - Frontend web server
 - **Application Load Balancer** - HTTPS/SSL termination
