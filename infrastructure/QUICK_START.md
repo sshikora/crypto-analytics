@@ -35,6 +35,8 @@ aws dynamodb create-table \
 
 ## 2. Deploy Infrastructure
 
+### Option A: Standard Configuration (~$250-300/month)
+
 ```bash
 cd infrastructure/terraform/environments/production
 
@@ -45,6 +47,22 @@ terraform apply
 
 # This takes ~15-20 minutes
 ```
+
+### Option B: Cost-Optimized Configuration (~$90-120/month) ⭐ RECOMMENDED
+
+For low traffic applications, use the cost-optimized configuration:
+
+```bash
+cd infrastructure/terraform/environments/production
+
+terraform init
+terraform plan -var-file=terraform.tfvars.cost-optimized
+terraform apply -var-file=terraform.tfvars.cost-optimized
+
+# This saves 60-70% on costs!
+```
+
+See [COST_OPTIMIZATION.md](./COST_OPTIMIZATION.md) for details.
 
 ## 3. Update Domain Nameservers
 
@@ -113,13 +131,23 @@ terraform destroy
 
 ## Costs
 
+### Standard Configuration
 Estimated monthly cost: **$250-300**
-
 - EKS Cluster: $73
 - 2x t3.medium nodes: $60
 - 3x NAT Gateways: $97
 - ALB: $22
 - Other services: ~$20
+
+### Cost-Optimized Configuration ⭐
+Estimated monthly cost: **$90-120** (60-70% savings!)
+- EKS Cluster: $73
+- 2x t3.small SPOT nodes: $6-12
+- 1x NAT Gateway: $32
+- ALB: $22
+- Other services: ~$10
+
+See [COST_OPTIMIZATION.md](./COST_OPTIMIZATION.md) for full details and trade-offs.
 
 ## Troubleshooting
 

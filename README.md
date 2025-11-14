@@ -283,7 +283,11 @@ cd infrastructure/scripts
 - Horizontal pod autoscaling (2-10 pods per service)
 - Health checks and monitoring
 
-**Estimated Cost:** ~$250-300/month
+**Estimated Cost:**
+- Standard: ~$250-300/month (high availability)
+- Cost-Optimized: ~$90-120/month (recommended for low traffic) ⭐
+
+See [Cost Optimization Guide](./infrastructure/COST_OPTIMIZATION.md) for 60-70% cost savings.
 
 **URLs after deployment:**
 - Frontend: https://cryptoquantlab.com

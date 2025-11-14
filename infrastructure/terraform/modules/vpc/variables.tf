@@ -27,3 +27,9 @@ variable "public_subnets" {
   description = "CIDR blocks for public subnets"
   type        = list(string)
 }
+
+variable "single_nat_gateway" {
+  description = "Use a single NAT gateway for all private subnets (cost optimization)"
+  type        = bool
+  default     = false
+}

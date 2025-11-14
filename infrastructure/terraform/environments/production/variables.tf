@@ -71,3 +71,9 @@ variable "node_groups" {
     }
   }
 }
+
+variable "single_nat_gateway" {
+  description = "Use a single NAT gateway for cost optimization (saves ~$65/month)"
+  type        = bool
+  default     = false
+}
