@@ -115,6 +115,9 @@ resource "helm_release" "aws_load_balancer_controller" {
   namespace  = "kube-system"
   version    = "1.6.2"
 
+  timeout = 600  # 10 minutes
+  wait    = true
+
   set {
     name  = "clusterName"
     value = module.eks.cluster_name
@@ -141,6 +144,8 @@ resource "helm_release" "external_dns" {
   namespace  = "kube-system"
   version    = "1.13.1"
 
+  timeout = 600  # 10 minutes
+
   set {
     name  = "serviceAccount.create"
     value = "true"
@@ -166,7 +171,10 @@ resource "helm_release" "external_dns" {
     value = var.domain_name
   }
 
-  depends_on = [module.eks]
+  depends_on = [
+    module.eks,
+    helm_release.aws_load_balancer_controller
+  ]
 }
 
 # Install Cert Manager for SSL certificates
@@ -176,6 +184,8 @@ resource "helm_release" "cert_manager" {
   chart      = "cert-manager"
   namespace  = "cert-manager"
   version    = "v1.13.2"
+
+  timeout = 600  # 10 minutes
 
   create_namespace = true
 
