@@ -45,7 +45,13 @@ resource "aws_route53_record" "cert_validation" {
 }
 
 # Validate the certificate
+# NOTE: This can take 30-120 minutes if DNS hasn't propagated yet
+# You must update domain nameservers to Route53 before this will complete
 resource "aws_acm_certificate_validation" "main" {
   certificate_arn         = aws_acm_certificate.main.arn
   validation_record_fqdns = [for record in aws_route53_record.cert_validation : record.fqdn]
+
+  timeouts {
+    create = "2h"  # Increased timeout to 2 hours
+  }
 }
