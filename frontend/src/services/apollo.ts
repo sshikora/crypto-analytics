@@ -14,12 +14,12 @@ export const apolloClient = new ApolloClient({
       Query: {
         fields: {
           topCryptocurrencies: {
-            merge(existing, incoming) {
+            merge(_existing, incoming) {
               return incoming;
             },
           },
           cryptocurrencies: {
-            merge(existing, incoming) {
+            merge(_existing, incoming) {
               return incoming;
             },
           },
