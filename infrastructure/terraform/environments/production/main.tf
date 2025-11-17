@@ -137,45 +137,47 @@ resource "helm_release" "aws_load_balancer_controller" {
 }
 
 # Install External DNS
-resource "helm_release" "external_dns" {
-  name       = "external-dns"
-  repository = "https://kubernetes-sigs.github.io/external-dns/"
-  chart      = "external-dns"
-  namespace  = "kube-system"
-  version    = "1.13.1"
-
-  timeout = 600  # 10 minutes
-
-  set {
-    name  = "serviceAccount.create"
-    value = "true"
-  }
-
-  set {
-    name  = "serviceAccount.name"
-    value = "external-dns"
-  }
-
-  set {
-    name  = "provider"
-    value = "aws"
-  }
-
-  set {
-    name  = "policy"
-    value = "sync"
-  }
-
-  set {
-    name  = "domainFilters[0]"
-    value = var.domain_name
-  }
-
-  depends_on = [
-    module.eks,
-    helm_release.aws_load_balancer_controller
-  ]
-}
+# Note: Temporarily commented out due to IRSA configuration issues
+# DNS records will be managed manually or through a separate deployment
+# resource "helm_release" "external_dns" {
+#   name       = "external-dns"
+#   repository = "https://kubernetes-sigs.github.io/external-dns/"
+#   chart      = "external-dns"
+#   namespace  = "kube-system"
+#   version    = "1.13.1"
+#
+#   timeout = 600  # 10 minutes
+#
+#   set {
+#     name  = "serviceAccount.create"
+#     value = "true"
+#   }
+#
+#   set {
+#     name  = "serviceAccount.name"
+#     value = "external-dns"
+#   }
+#
+#   set {
+#     name  = "provider"
+#     value = "aws"
+#   }
+#
+#   set {
+#     name  = "policy"
+#     value = "sync"
+#   }
+#
+#   set {
+#     name  = "domainFilters[0]"
+#     value = var.domain_name
+#   }
+#
+#   depends_on = [
+#     module.eks,
+#     helm_release.aws_load_balancer_controller
+#   ]
+# }
 
 # Install Cert Manager for SSL certificates
 resource "helm_release" "cert_manager" {
