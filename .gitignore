@@ -45,3 +45,14 @@ drizzle/
 # Misc
 .cache/
 .temp/
+
+# OpenTofu/Terraform
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.backup
+*.tfstate
+*.tfstate.backup
+*.tfvars
+!*.tfvars.example
+!terraform.tfvars.cost-optimized
