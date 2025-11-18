@@ -8,7 +8,7 @@ export const Header: React.FC = () => {
         <div className="flex justify-between items-center py-4">
           <Link to="/" className="flex items-center space-x-2">
             <div className="text-2xl font-bold text-primary-600">
-              CryptoAnalytics
+              Crypto Analytics
             </div>
           </Link>
           <nav className="flex space-x-6">
