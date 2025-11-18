@@ -266,5 +266,4 @@ For issues or questions:
 - Consult AWS documentation
 
 ## License
-
-MIT
+NO PUBLIC LICENSE
