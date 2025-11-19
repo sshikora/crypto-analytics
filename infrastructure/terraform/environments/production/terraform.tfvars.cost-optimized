@@ -16,7 +16,7 @@ private_subnets = ["10.0.1.0/24", "10.0.2.0/24"]
 public_subnets = ["10.0.101.0/24", "10.0.102.0/24"]
 
 # EKS Configuration
-cluster_version = "1.29"
+cluster_version = "1.33"
 
 # Node Groups - Spot Instances (saves ~60-90%)
 node_groups = {
