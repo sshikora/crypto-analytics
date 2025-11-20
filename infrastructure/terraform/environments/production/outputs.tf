@@ -32,3 +32,23 @@ output "route53_name_servers" {
   description = "Route53 name servers"
   value       = module.route53.name_servers
 }
+
+output "cognito_user_pool_id" {
+  description = "Cognito User Pool ID"
+  value       = module.cognito.user_pool_id
+}
+
+output "cognito_user_pool_client_id" {
+  description = "Cognito User Pool Client ID"
+  value       = module.cognito.user_pool_client_id
+}
+
+output "cognito_domain" {
+  description = "Cognito User Pool Domain"
+  value       = module.cognito.user_pool_domain
+}
+
+output "dynamodb_preferences_table" {
+  description = "DynamoDB table for user preferences"
+  value       = module.cognito.dynamodb_table_name
+}
