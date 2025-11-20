@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@apollo/client';
 import { PriceChart } from '../components/PriceChart';
+import { MovingAverageChart } from '../components/MovingAverageChart';
 import { StatCard } from '../components/StatCard';
 import { TimeRangeSelector } from '../components/TimeRangeSelector';
 import { LoadingSpinner } from '../components/LoadingSpinner';
@@ -13,6 +14,7 @@ export const CryptoDetail: React.FC = () => {
   const { symbol } = useParams<{ symbol: string }>();
   const navigate = useNavigate();
   const [timeRange, setTimeRange] = useState<TimeRange>(TimeRange.DAY);
+  const [maTimeRange, setMaTimeRange] = useState<TimeRange>(TimeRange.MONTH);
 
   const { data: cryptoData, loading: cryptoLoading } = useQuery(GET_CRYPTOCURRENCY, {
     variables: { symbol: symbol?.toUpperCase() },
@@ -21,6 +23,11 @@ export const CryptoDetail: React.FC = () => {
 
   const { data: historyData, loading: historyLoading } = useQuery(GET_PRICE_HISTORY, {
     variables: { symbol: symbol?.toUpperCase(), timeRange },
+    skip: !symbol,
+  });
+
+  const { data: maHistoryData, loading: maHistoryLoading } = useQuery(GET_PRICE_HISTORY, {
+    variables: { symbol: symbol?.toUpperCase(), timeRange: maTimeRange },
     skip: !symbol,
   });
 
@@ -35,6 +42,7 @@ export const CryptoDetail: React.FC = () => {
 
   const crypto = cryptoData?.cryptocurrency;
   const priceHistory = historyData?.priceHistory;
+  const maHistory = maHistoryData?.priceHistory;
   const marketStats = statsData?.marketStats;
 
   if (!crypto) {
@@ -136,6 +144,23 @@ export const CryptoDetail: React.FC = () => {
           />
         ) : (
           <p className="text-gray-500 text-center py-8">No price history available</p>
+        )}
+      </div>
+
+      {/* Moving Average Chart */}
+      <div className="card">
+        {maHistory && maHistory.data.length > 0 ? (
+          <MovingAverageChart
+            data={maHistory.data}
+            selectedTimeRange={maTimeRange}
+            onTimeRangeChange={setMaTimeRange}
+          />
+        ) : maHistoryLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+          </div>
+        ) : (
+          <p className="text-gray-500 text-center py-8">No data available for moving averages</p>
         )}
       </div>
 
