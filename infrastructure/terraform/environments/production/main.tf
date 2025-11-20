@@ -72,6 +72,16 @@ module "route53" {
   environment = var.environment
 }
 
+# Cognito Module for user authentication
+module "cognito" {
+  source = "../../modules/cognito"
+
+  project_name  = var.project_name
+  environment   = var.environment
+  callback_urls = ["https://${var.domain_name}", "https://${var.domain_name}/callback", "http://localhost:5173", "http://localhost:5173/callback"]
+  logout_urls   = ["https://${var.domain_name}", "http://localhost:5173"]
+}
+
 # Configure Kubernetes provider
 provider "kubernetes" {
   host                   = module.eks.cluster_endpoint
