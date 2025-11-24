@@ -55,15 +55,33 @@ export const typeDefs = `
     ALL
   }
 
+  type UserPreferences {
+    userId: String!
+    colorMode: String!
+    enabledMAPeriods: [Int!]!
+    defaultTimeRange: String!
+    showDifference: Boolean!
+  }
+
+  input UserPreferencesInput {
+    userId: String!
+    colorMode: String!
+    enabledMAPeriods: [Int!]!
+    defaultTimeRange: String!
+    showDifference: Boolean!
+  }
+
   type Query {
     cryptocurrencies: [Cryptocurrency!]!
     cryptocurrency(symbol: String!): Cryptocurrency
     priceHistory(symbol: String!, timeRange: TimeRange!): PriceHistory
     marketStats(symbol: String!): MarketStats
     topCryptocurrencies(limit: Int): [Cryptocurrency!]!
+    userPreferences(userId: String!): UserPreferences
   }
 
   type Mutation {
     refreshCryptoData(symbol: String!): Cryptocurrency
+    saveUserPreferences(input: UserPreferencesInput!): UserPreferences!
   }
 `;

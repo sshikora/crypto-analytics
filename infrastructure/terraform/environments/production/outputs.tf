@@ -52,3 +52,13 @@ output "dynamodb_preferences_table" {
   description = "DynamoDB table for user preferences"
   value       = module.cognito.dynamodb_table_name
 }
+
+output "ses_domain_verification_token" {
+  description = "SES domain verification token - Add TXT record: _amazonses.cryptoquantlab.com"
+  value       = module.cognito.ses_domain_verification_token
+}
+
+output "ses_dkim_tokens" {
+  description = "DKIM tokens - Add 3 CNAME records: <token>._domainkey.cryptoquantlab.com"
+  value       = module.cognito.ses_dkim_tokens
+}

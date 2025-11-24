@@ -37,3 +37,13 @@ output "dynamodb_access_policy_arn" {
   description = "The ARN of the IAM policy for DynamoDB access"
   value       = aws_iam_policy.dynamodb_access.arn
 }
+
+output "ses_domain_verification_token" {
+  description = "SES domain verification token to add to DNS"
+  value       = aws_ses_domain_identity.main.verification_token
+}
+
+output "ses_dkim_tokens" {
+  description = "DKIM tokens for email authentication"
+  value       = aws_ses_domain_dkim.main.dkim_tokens
+}

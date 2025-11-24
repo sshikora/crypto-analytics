@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   XAxis,
   YAxis,
@@ -14,6 +14,7 @@ import {
 } from 'recharts';
 import { format } from 'date-fns';
 import { PricePoint, TimeRange } from '../types/crypto';
+import { useAuth } from '../context/AuthContext';
 
 interface ZoomState {
   left: number | null;
@@ -95,6 +96,11 @@ export const MovingAverageChart: React.FC<MovingAverageChartProps> = ({
   onTimeRangeChange,
   selectedTimeRange,
 }) => {
+  const { user, isAuthenticated, preferences, savePreferences } = useAuth();
+
+  // Track if preferences have been initialized
+  const [preferencesInitialized, setPreferencesInitialized] = useState(false);
+
   const [colorMode, setColorMode] = useState<ColorMode>('default');
   const [maConfigs, setMaConfigs] = useState<MovingAverageConfig[]>(
     DEFAULT_MA_PERIODS.map((period) => ({
@@ -104,6 +110,57 @@ export const MovingAverageChart: React.FC<MovingAverageChartProps> = ({
   );
   const [customPeriod, setCustomPeriod] = useState<string>('');
   const [showDifference, setShowDifference] = useState(false);
+
+  // Load preferences from auth context when user logs in
+  useEffect(() => {
+    if (isAuthenticated && preferences && !preferencesInitialized) {
+      setColorMode(preferences.colorMode as ColorMode);
+      setShowDifference(preferences.showDifference);
+
+      // Update MA configs based on saved preferences
+      const enabledPeriods = preferences.enabledMAPeriods;
+
+      // Get all unique periods (default + custom)
+      const allPeriods = Array.from(new Set([...DEFAULT_MA_PERIODS, ...enabledPeriods])).sort((a, b) => a - b);
+
+      setMaConfigs(
+        allPeriods.map((period) => ({
+          period,
+          enabled: enabledPeriods.includes(period),
+        }))
+      );
+      setPreferencesInitialized(true);
+    } else if (!isAuthenticated && !preferencesInitialized) {
+      // For non-authenticated users, mark as initialized immediately
+      setPreferencesInitialized(true);
+    }
+  }, [isAuthenticated, preferences, preferencesInitialized]);
+
+  // Save preferences when they change (only if user is authenticated and initialized)
+  useEffect(() => {
+    if (isAuthenticated && user && preferencesInitialized) {
+      const enabledPeriods = maConfigs.filter(ma => ma.enabled).map(ma => ma.period);
+
+      // Only save if preferences have actually changed
+      if (preferences) {
+        const hasChanged =
+          preferences.colorMode !== colorMode ||
+          preferences.showDifference !== showDifference ||
+          JSON.stringify(preferences.enabledMAPeriods) !== JSON.stringify(enabledPeriods);
+
+        if (hasChanged) {
+          savePreferences({
+            colorMode,
+            enabledMAPeriods: enabledPeriods,
+            defaultTimeRange: selectedTimeRange,
+            showDifference,
+          }).catch(error => {
+            console.error('Failed to save preferences:', error);
+          });
+        }
+      }
+    }
+  }, [colorMode, maConfigs, showDifference, selectedTimeRange, isAuthenticated, user, preferences, savePreferences, preferencesInitialized]);
 
   // Zoom state
   const [zoomState, setZoomState] = useState<ZoomState>({
@@ -246,6 +303,17 @@ export const MovingAverageChart: React.FC<MovingAverageChartProps> = ({
   }, [zoomState.left, zoomState.right, chartData, resetZoom]);
 
   const isZoomed = zoomState.left !== null && zoomState.right !== null;
+
+  // Show loading state while preferences are being initialized for authenticated users
+  if (isAuthenticated && !preferencesInitialized) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-center h-[400px]">
+          <div className="text-gray-500">Loading preferences...</div>
+        </div>
+      </div>
+    );
+  }
 
   const toggleMA = (period: number) => {
     setMaConfigs((prev) =>

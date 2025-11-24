@@ -1,5 +1,39 @@
 # AWS Cognito User Pool for user authentication
 
+# SES Email Identity for sending from custom domain
+resource "aws_ses_email_identity" "noreply" {
+  email = "noreply@${var.domain_name}"
+}
+
+# Verify the entire domain for SES
+resource "aws_ses_domain_identity" "main" {
+  domain = var.domain_name
+}
+
+# Enable DKIM for email authentication
+resource "aws_ses_domain_dkim" "main" {
+  domain = aws_ses_domain_identity.main.domain
+}
+
+# Route53 DNS records for SES domain verification
+resource "aws_route53_record" "ses_verification" {
+  zone_id = var.route53_zone_id
+  name    = "_amazonses.${var.domain_name}"
+  type    = "TXT"
+  ttl     = 600
+  records = [aws_ses_domain_identity.main.verification_token]
+}
+
+# Route53 DNS records for DKIM
+resource "aws_route53_record" "ses_dkim" {
+  count   = 3
+  zone_id = var.route53_zone_id
+  name    = "${element(aws_ses_domain_dkim.main.dkim_tokens, count.index)}._domainkey.${var.domain_name}"
+  type    = "CNAME"
+  ttl     = 600
+  records = ["${element(aws_ses_domain_dkim.main.dkim_tokens, count.index)}.dkim.amazonses.com"]
+}
+
 resource "aws_cognito_user_pool" "main" {
   name = "${var.project_name}-${var.environment}-users"
 
@@ -27,14 +61,17 @@ resource "aws_cognito_user_pool" "main" {
 
   # Email configuration for password reset
   email_configuration {
-    email_sending_account = "COGNITO_DEFAULT"
+    email_sending_account = "DEVELOPER"
+    source_arn            = aws_ses_email_identity.noreply.arn
+    from_email_address    = "noreply@${var.domain_name}"
+    reply_to_email_address = "support@${var.domain_name}"
   }
 
   # Verification message
   verification_message_template {
     default_email_option = "CONFIRM_WITH_CODE"
-    email_subject        = "${var.project_name} - Verify your email"
-    email_message        = "Your verification code is {####}"
+    email_subject        = "CryptoQuantLab - Verify your email"
+    email_message        = "Welcome to CryptoQuantLab! Your verification code is {####}"
   }
 
   # User attribute schema

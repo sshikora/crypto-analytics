@@ -76,10 +76,18 @@ module "route53" {
 module "cognito" {
   source = "../../modules/cognito"
 
-  project_name  = var.project_name
-  environment   = var.environment
-  callback_urls = ["https://${var.domain_name}", "https://${var.domain_name}/callback", "http://localhost:5173", "http://localhost:5173/callback"]
-  logout_urls   = ["https://${var.domain_name}", "http://localhost:5173"]
+  project_name     = var.project_name
+  environment      = var.environment
+  domain_name      = var.domain_name
+  route53_zone_id  = module.route53.zone_id
+  callback_urls    = ["https://${var.domain_name}", "https://${var.domain_name}/callback", "http://localhost:5173", "http://localhost:5173/callback"]
+  logout_urls      = ["https://${var.domain_name}", "http://localhost:5173"]
+}
+
+# Attach DynamoDB access policy to EKS node group role so backend pods can access user preferences
+resource "aws_iam_role_policy_attachment" "node_group_dynamodb" {
+  policy_arn = module.cognito.dynamodb_access_policy_arn
+  role       = module.eks.node_group_role_name
 }
 
 # Configure Kubernetes provider
