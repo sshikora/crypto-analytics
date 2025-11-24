@@ -19,3 +19,13 @@ variable "logout_urls" {
   type        = list(string)
   default     = ["http://localhost:5173"]
 }
+
+variable "domain_name" {
+  description = "Custom domain name for email addresses"
+  type        = string
+}
+
+variable "route53_zone_id" {
+  description = "Route53 hosted zone ID for DNS records"
+  type        = string
+}

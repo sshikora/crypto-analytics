@@ -32,3 +32,8 @@ output "node_group_role_arn" {
   description = "ARN of the node group IAM role"
   value       = aws_iam_role.node_group.arn
 }
+
+output "node_group_role_name" {
+  description = "Name of the node group IAM role"
+  value       = aws_iam_role.node_group.name
+}

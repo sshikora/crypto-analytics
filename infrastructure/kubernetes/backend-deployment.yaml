@@ -6,6 +6,8 @@ metadata:
 data:
   PORT: "4000"
   NODE_ENV: "production"
+  AWS_REGION: "us-east-1"
+  DYNAMODB_PREFERENCES_TABLE: "crypto-analytics-production-user-preferences"
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -28,7 +30,7 @@ spec:
     spec:
       containers:
       - name: backend
-        image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/crypto-analytics-backend:latest
+        image: 010151257830.dkr.ecr.us-east-1.amazonaws.com/crypto-analytics-backend:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 4000
@@ -45,6 +47,16 @@ spec:
             configMapKeyRef:
               name: backend-config
               key: NODE_ENV
+        - name: AWS_REGION
+          valueFrom:
+            configMapKeyRef:
+              name: backend-config
+              key: AWS_REGION
+        - name: DYNAMODB_PREFERENCES_TABLE
+          valueFrom:
+            configMapKeyRef:
+              name: backend-config
+              key: DYNAMODB_PREFERENCES_TABLE
         resources:
           requests:
             memory: "256Mi"
