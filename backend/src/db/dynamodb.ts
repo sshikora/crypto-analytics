@@ -13,6 +13,7 @@ export interface UserPreferences {
   enabledMAPeriods: number[];
   defaultTimeRange: string;
   showDifference: boolean;
+  dashboardCoins?: string[];
 }
 
 const TABLE_NAME = process.env.DYNAMODB_PREFERENCES_TABLE || 'crypto-analytics-production-user-preferences';

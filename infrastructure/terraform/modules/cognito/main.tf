@@ -60,11 +60,11 @@ resource "aws_cognito_user_pool" "main" {
   }
 
   # Email configuration for password reset
+  # Using COGNITO_DEFAULT because SES is in sandbox mode
+  # To use custom domain emails, you need to request production access for SES:
+  # https://docs.aws.amazon.com/ses/latest/dg/request-production-access.html
   email_configuration {
-    email_sending_account = "DEVELOPER"
-    source_arn            = aws_ses_email_identity.noreply.arn
-    from_email_address    = "noreply@${var.domain_name}"
-    reply_to_email_address = "support@${var.domain_name}"
+    email_sending_account = "COGNITO_DEFAULT"
   }
 
   # Verification message

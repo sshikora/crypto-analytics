@@ -92,9 +92,22 @@ class CoinGeckoService {
 
       cache.set(cacheKey, response.data);
       return response.data;
-    } catch (error) {
-      console.error('Error fetching price history from CoinGecko:', error);
-      throw new Error('Failed to fetch price history');
+    } catch (error: any) {
+      console.error('Error fetching price history from CoinGecko:', {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        url: `${COINGECKO_API_BASE}/coins/${coinId}/market_chart`,
+        params: { vs_currency: 'usd', days },
+      });
+
+      // If rate limited, throw a more specific error
+      if (error.response?.status === 429) {
+        throw new Error('CoinGecko API rate limit exceeded. Please try again later.');
+      }
+
+      throw new Error(`Failed to fetch price history: ${error.response?.data?.error || error.message}`);
     }
   }
 

@@ -13,7 +13,9 @@ export const SignUp = () => {
   const [needsConfirmation, setNeedsConfirmation] = useState(false);
   const [confirmationCode, setConfirmationCode] = useState('');
   const navigate = useNavigate();
-  const { signUp, confirmSignUp } = useAuth();
+  const { signUp, confirmSignUp, resendSignUpCode } = useAuth();
+  const [isResending, setIsResending] = useState(false);
+  const [resendMessage, setResendMessage] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,6 +47,7 @@ export const SignUp = () => {
   const handleConfirm = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setResendMessage('');
     setIsLoading(true);
 
     try {
@@ -55,6 +58,22 @@ export const SignUp = () => {
       setError(errorMessage);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleResendCode = async () => {
+    setError('');
+    setResendMessage('');
+    setIsResending(true);
+
+    try {
+      await resendSignUpCode(email);
+      setResendMessage('A new verification code has been sent to your email.');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to resend code';
+      setError(errorMessage);
+    } finally {
+      setIsResending(false);
     }
   };
 
@@ -70,6 +89,12 @@ export const SignUp = () => {
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md mb-4">
               {error}
+            </div>
+          )}
+
+          {resendMessage && (
+            <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md mb-4">
+              {resendMessage}
             </div>
           )}
 
@@ -97,6 +122,18 @@ export const SignUp = () => {
               {isLoading ? 'Verifying...' : 'Verify'}
             </button>
           </form>
+
+          <div className="mt-4 text-center">
+            <p className="text-sm text-gray-600 mb-2">Didn't receive the code?</p>
+            <button
+              type="button"
+              onClick={handleResendCode}
+              disabled={isResending}
+              className="text-primary-600 hover:text-primary-700 font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isResending ? 'Sending...' : 'Resend verification code'}
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -197,6 +234,35 @@ export const SignUp = () => {
           <Link to="/login" className="text-primary-600 hover:text-primary-700 font-medium">
             Sign in
           </Link>
+        </div>
+
+        <div className="mt-2 text-center text-sm border-t border-gray-200 pt-4">
+          <p className="text-gray-600 mb-2">Already signed up but didn't receive a verification code?</p>
+          <button
+            type="button"
+            onClick={async () => {
+              if (!email) {
+                setError('Please enter your email address first');
+                return;
+              }
+              setError('');
+              setResendMessage('');
+              setIsResending(true);
+              try {
+                await resendSignUpCode(email);
+                setResendMessage('A verification code has been sent to your email.');
+              } catch (err: unknown) {
+                const errorMessage = err instanceof Error ? err.message : 'Failed to resend code';
+                setError(errorMessage);
+              } finally {
+                setIsResending(false);
+              }
+            }}
+            disabled={isResending || !email}
+            className="text-primary-600 hover:text-primary-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isResending ? 'Sending...' : 'Resend verification code'}
+          </button>
         </div>
       </div>
 

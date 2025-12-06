@@ -12,6 +12,7 @@ export interface UserPreferences {
   enabledMAPeriods: number[];
   defaultTimeRange: string;
   showDifference: boolean;
+  dashboardCoins?: string[];
 }
 
 export interface AuthState {

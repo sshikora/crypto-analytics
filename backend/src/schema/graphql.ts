@@ -61,6 +61,7 @@ export const typeDefs = `
     enabledMAPeriods: [Int!]!
     defaultTimeRange: String!
     showDifference: Boolean!
+    dashboardCoins: [String!]
   }
 
   input UserPreferencesInput {
@@ -69,6 +70,7 @@ export const typeDefs = `
     enabledMAPeriods: [Int!]!
     defaultTimeRange: String!
     showDifference: Boolean!
+    dashboardCoins: [String!]
   }
 
   type Query {

@@ -38,6 +38,7 @@ interface MovingAverageConfig {
 }
 
 const DEFAULT_MA_PERIODS = [7, 14, 21, 50, 100, 200];
+const LOCAL_STORAGE_KEY = 'crypto-analytics-ma-preferences';
 
 // Color schemes for different accessibility modes
 const COLOR_SCHEMES = {
@@ -111,9 +112,10 @@ export const MovingAverageChart: React.FC<MovingAverageChartProps> = ({
   const [customPeriod, setCustomPeriod] = useState<string>('');
   const [showDifference, setShowDifference] = useState(false);
 
-  // Load preferences from auth context when user logs in
+  // Load preferences from auth context (authenticated) or localStorage (anonymous)
   useEffect(() => {
     if (isAuthenticated && preferences && !preferencesInitialized) {
+      // Load from DynamoDB for authenticated users
       setColorMode(preferences.colorMode as ColorMode);
       setShowDifference(preferences.showDifference);
 
@@ -131,33 +133,91 @@ export const MovingAverageChart: React.FC<MovingAverageChartProps> = ({
       );
       setPreferencesInitialized(true);
     } else if (!isAuthenticated && !preferencesInitialized) {
-      // For non-authenticated users, mark as initialized immediately
+      // Load from localStorage for anonymous users
+      try {
+        const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (stored) {
+          const localPrefs = JSON.parse(stored);
+          console.log('Loading MA preferences from localStorage:', localPrefs);
+
+          if (localPrefs.colorMode) setColorMode(localPrefs.colorMode);
+          if (typeof localPrefs.showDifference === 'boolean') setShowDifference(localPrefs.showDifference);
+
+          if (localPrefs.enabledPeriods && Array.isArray(localPrefs.enabledPeriods)) {
+            const allPeriods = Array.from(new Set([...DEFAULT_MA_PERIODS, ...localPrefs.enabledPeriods])).sort((a, b) => a - b);
+            setMaConfigs(
+              allPeriods.map((period) => ({
+                period,
+                enabled: localPrefs.enabledPeriods.includes(period),
+              }))
+            );
+          }
+        }
+      } catch (error) {
+        console.error('Error loading preferences from localStorage:', error);
+      }
       setPreferencesInitialized(true);
     }
   }, [isAuthenticated, preferences, preferencesInitialized]);
 
-  // Save preferences when they change (only if user is authenticated and initialized)
+  // Save preferences when they change
   useEffect(() => {
-    if (isAuthenticated && user && preferencesInitialized) {
-      const enabledPeriods = maConfigs.filter(ma => ma.enabled).map(ma => ma.period);
+    if (!preferencesInitialized) return;
 
-      // Only save if preferences have actually changed
-      if (preferences) {
-        const hasChanged =
-          preferences.colorMode !== colorMode ||
-          preferences.showDifference !== showDifference ||
-          JSON.stringify(preferences.enabledMAPeriods) !== JSON.stringify(enabledPeriods);
+    const enabledPeriods = maConfigs.filter(ma => ma.enabled).map(ma => ma.period);
 
-        if (hasChanged) {
-          savePreferences({
-            colorMode,
-            enabledMAPeriods: enabledPeriods,
-            defaultTimeRange: selectedTimeRange,
-            showDifference,
-          }).catch(error => {
-            console.error('Failed to save preferences:', error);
-          });
-        }
+    console.log('MA Preferences effect triggered:', {
+      isAuthenticated,
+      hasUser: !!user,
+      preferencesInitialized,
+      colorMode,
+      showDifference,
+      selectedTimeRange,
+      enabledPeriods,
+    });
+
+    // Save to localStorage for all users (anonymous + authenticated)
+    try {
+      const localPrefs = {
+        colorMode,
+        showDifference,
+        enabledPeriods,
+        defaultTimeRange: selectedTimeRange,
+      };
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(localPrefs));
+      console.log('Saved MA preferences to localStorage:', localPrefs);
+    } catch (error) {
+      console.error('Error saving to localStorage:', error);
+    }
+
+    // Also save to DynamoDB for authenticated users
+    if (isAuthenticated && user && preferences) {
+      const hasChanged =
+        preferences.colorMode !== colorMode ||
+        preferences.showDifference !== showDifference ||
+        JSON.stringify(preferences.enabledMAPeriods) !== JSON.stringify(enabledPeriods);
+
+      console.log('Checking if DynamoDB preferences changed:', {
+        hasChanged,
+        current: { colorMode, showDifference, enabledPeriods, defaultTimeRange: selectedTimeRange },
+        saved: {
+          colorMode: preferences.colorMode,
+          showDifference: preferences.showDifference,
+          enabledMAPeriods: preferences.enabledMAPeriods,
+          defaultTimeRange: preferences.defaultTimeRange,
+        },
+      });
+
+      if (hasChanged) {
+        console.log('Saving preferences to DynamoDB...');
+        savePreferences({
+          colorMode,
+          enabledMAPeriods: enabledPeriods,
+          defaultTimeRange: selectedTimeRange,
+          showDifference,
+        }).catch(error => {
+          console.error('Failed to save preferences to DynamoDB:', error);
+        });
       }
     }
   }, [colorMode, maConfigs, showDifference, selectedTimeRange, isAuthenticated, user, preferences, savePreferences, preferencesInitialized]);
