@@ -4,6 +4,7 @@ import {
   signUp,
   signOut,
   confirmSignUp,
+  resendSignUpCode,
   resetPassword,
   confirmResetPassword,
   getCurrentUser,
@@ -19,6 +20,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, acceptedTerms: boolean) => Promise<void>;
   confirmSignUp: (email: string, code: string) => Promise<void>;
+  resendSignUpCode: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   confirmResetPassword: (email: string, code: string, newPassword: string) => Promise<void>;
@@ -124,6 +126,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   };
 
+  const handleResendSignUpCode = async (email: string) => {
+    try {
+      await resendSignUpCode({ username: email });
+    } catch (error) {
+      throw error;
+    }
+  };
+
   const handleSignOut = async () => {
     try {
       await signOut();
@@ -171,6 +181,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                 enabledMAPeriods
                 defaultTimeRange
                 showDifference
+                dashboardCoins
               }
             }
           `,
@@ -189,6 +200,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           enabledMAPeriods: [7, 21],
           defaultTimeRange: 'MONTH',
           showDifference: false,
+          dashboardCoins: [],
         });
       }
     } catch (error) {
@@ -227,6 +239,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                 enabledMAPeriods
                 defaultTimeRange
                 showDifference
+                dashboardCoins
               }
             }
           `,
@@ -237,6 +250,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
               enabledMAPeriods: newPreferences.enabledMAPeriods,
               defaultTimeRange: newPreferences.defaultTimeRange,
               showDifference: newPreferences.showDifference,
+              dashboardCoins: newPreferences.dashboardCoins || [],
             },
           },
         }),
@@ -262,6 +276,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         signIn: handleSignIn,
         signUp: handleSignUp,
         confirmSignUp: handleConfirmSignUp,
+        resendSignUpCode: handleResendSignUpCode,
         signOut: handleSignOut,
         resetPassword: handleResetPassword,
         confirmResetPassword: handleConfirmResetPassword,

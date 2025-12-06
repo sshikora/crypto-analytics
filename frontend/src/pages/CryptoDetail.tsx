@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@apollo/client';
 import { PriceChart } from '../components/PriceChart';
@@ -9,12 +9,21 @@ import { LoadingSpinner } from '../components/LoadingSpinner';
 import { GET_CRYPTOCURRENCY, GET_PRICE_HISTORY, GET_MARKET_STATS } from '../services/queries';
 import { TimeRange } from '../types/crypto';
 import { format } from 'date-fns';
+import { useAuth } from '../context/AuthContext';
 
 export const CryptoDetail: React.FC = () => {
   const { symbol } = useParams<{ symbol: string }>();
   const navigate = useNavigate();
+  const { preferences } = useAuth();
   const [timeRange, setTimeRange] = useState<TimeRange>(TimeRange.DAY);
   const [maTimeRange, setMaTimeRange] = useState<TimeRange>(TimeRange.MONTH);
+
+  // Load default time range from preferences
+  useEffect(() => {
+    if (preferences?.defaultTimeRange) {
+      setMaTimeRange(preferences.defaultTimeRange as TimeRange);
+    }
+  }, [preferences]);
 
   const { data: cryptoData, loading: cryptoLoading } = useQuery(GET_CRYPTOCURRENCY, {
     variables: { symbol: symbol?.toUpperCase() },
