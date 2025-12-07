@@ -423,8 +423,5 @@ The CoinGecko free API has rate limits:
 
 ## License
 
-MIT
+No Public License
 
-## Contributing
-
-Contributions are welcome! Please open an issue or submit a pull request.
