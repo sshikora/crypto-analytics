@@ -10,6 +10,7 @@ import { GET_CRYPTOCURRENCY, GET_PRICE_HISTORY, GET_MARKET_STATS } from '../serv
 import { TimeRange } from '../types/crypto';
 import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
+import { posthog } from '../services/posthog';
 
 export const CryptoDetail: React.FC = () => {
   const { symbol } = useParams<{ symbol: string }>();
@@ -17,13 +18,6 @@ export const CryptoDetail: React.FC = () => {
   const { preferences } = useAuth();
   const [timeRange, setTimeRange] = useState<TimeRange>(TimeRange.DAY);
   const [maTimeRange, setMaTimeRange] = useState<TimeRange>(TimeRange.MONTH);
-
-  // Load default time range from preferences
-  useEffect(() => {
-    if (preferences?.defaultTimeRange) {
-      setMaTimeRange(preferences.defaultTimeRange as TimeRange);
-    }
-  }, [preferences]);
 
   const { data: cryptoData, loading: cryptoLoading } = useQuery(GET_CRYPTOCURRENCY, {
     variables: { symbol: symbol?.toUpperCase() },
@@ -44,6 +38,25 @@ export const CryptoDetail: React.FC = () => {
     variables: { symbol: symbol?.toUpperCase() },
     skip: !symbol,
   });
+
+  // Load default time range from preferences
+  useEffect(() => {
+    if (preferences?.defaultTimeRange) {
+      setMaTimeRange(preferences.defaultTimeRange as TimeRange);
+    }
+  }, [preferences]);
+
+  // Track crypto detail page views
+  useEffect(() => {
+    if (symbol && cryptoData?.cryptocurrency) {
+      if (posthog) {
+        posthog.capture('crypto_detail_viewed', {
+          symbol: symbol.toUpperCase(),
+          name: cryptoData.cryptocurrency.name,
+        });
+      }
+    }
+  }, [symbol, cryptoData]);
 
   if (cryptoLoading || historyLoading || statsLoading) {
     return <LoadingSpinner />;

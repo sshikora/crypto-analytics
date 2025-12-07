@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { posthog } from '../services/posthog';
 
 export const Login = () => {
   const [email, setEmail] = useState('');
@@ -17,10 +18,22 @@ export const Login = () => {
 
     try {
       await signIn(email, password);
+      // Track successful sign in
+      if (posthog) {
+        posthog.capture('user_signed_in', {
+          method: 'email',
+        });
+      }
       navigate('/');
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to sign in';
       setError(errorMessage);
+      // Track failed sign in
+      if (posthog) {
+        posthog.capture('sign_in_failed', {
+          error: errorMessage,
+        });
+      }
     } finally {
       setIsLoading(false);
     }

@@ -11,6 +11,7 @@ import {
   fetchUserAttributes,
 } from 'aws-amplify/auth';
 import { User, UserPreferences } from '../types/auth';
+import { posthog } from '../services/posthog';
 
 interface AuthContextType {
   user: User | null;
@@ -69,19 +70,34 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       const currentUser = await getCurrentUser();
       const attributes = await fetchUserAttributes();
 
-      setUser({
+      const userData = {
         id: currentUser.userId,
         email: attributes.email || '',
         emailVerified: attributes.email_verified === 'true',
         termsAccepted: attributes['custom:terms_accepted'] === 'true',
         termsAcceptedDate: attributes['custom:terms_accepted_date'],
-      });
+      };
+
+      setUser(userData);
+
+      // Identify user in PostHog
+      if (posthog) {
+        posthog.identify(userData.id, {
+          email: userData.email,
+          emailVerified: userData.emailVerified,
+          termsAccepted: userData.termsAccepted,
+        });
+      }
 
       // Load preferences after auth
       await loadPreferencesInternal(currentUser.userId);
     } catch {
       setUser(null);
       setPreferences(null);
+      // Reset PostHog identity for anonymous tracking
+      if (posthog) {
+        posthog.reset();
+      }
     } finally {
       setIsLoading(false);
     }
@@ -139,6 +155,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       await signOut();
       setUser(null);
       setPreferences(null);
+      // Reset PostHog identity to track as anonymous
+      if (posthog) {
+        posthog.reset();
+      }
     } catch (error) {
       throw error;
     }
@@ -259,6 +279,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       const data = await response.json();
       if (data.data?.saveUserPreferences) {
         setPreferences(data.data.saveUserPreferences);
+        // Track preference changes
+        if (posthog) {
+          posthog.capture('preferences_updated', {
+            colorMode: newPreferences.colorMode,
+            enabledMAPeriods: newPreferences.enabledMAPeriods,
+            defaultTimeRange: newPreferences.defaultTimeRange,
+            showDifference: newPreferences.showDifference,
+            dashboardCoinsCount: newPreferences.dashboardCoins?.length || 0,
+          });
+        }
       }
     } catch (error) {
       console.error('Failed to save preferences:', error);

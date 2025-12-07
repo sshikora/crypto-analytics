@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { posthog } from '../services/posthog';
 
 export const SignUp = () => {
   const [email, setEmail] = useState('');
@@ -36,9 +37,21 @@ export const SignUp = () => {
     try {
       await signUp(email, password, acceptedTerms);
       setNeedsConfirmation(true);
+      // Track successful sign up
+      if (posthog) {
+        posthog.capture('user_signed_up', {
+          method: 'email',
+        });
+      }
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to sign up';
       setError(errorMessage);
+      // Track failed sign up
+      if (posthog) {
+        posthog.capture('sign_up_failed', {
+          error: errorMessage,
+        });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -52,10 +65,22 @@ export const SignUp = () => {
 
     try {
       await confirmSignUp(email, confirmationCode);
+      // Track successful email verification
+      if (posthog) {
+        posthog.capture('email_verified', {
+          method: 'email',
+        });
+      }
       navigate('/login');
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to confirm';
       setError(errorMessage);
+      // Track failed email verification
+      if (posthog) {
+        posthog.capture('email_verification_failed', {
+          error: errorMessage,
+        });
+      }
     } finally {
       setIsLoading(false);
     }

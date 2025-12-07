@@ -1,4 +1,5 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { ApolloProvider } from '@apollo/client';
 import { Provider } from 'react-redux';
 import { Header } from './components/Header';
@@ -12,9 +13,23 @@ import { apolloClient } from './services/apollo';
 import { store } from './store';
 import { AuthProvider } from './context/AuthContext';
 import { configureAmplify } from './services/amplifyConfig';
+import { posthog } from './services/posthog';
 
 // Initialize Amplify
 configureAmplify();
+
+function PageViewTracker() {
+  const location = useLocation();
+
+  useEffect(() => {
+    // Track page views on route change
+    if (posthog) {
+      posthog.capture('$pageview');
+    }
+  }, [location]);
+
+  return null;
+}
 
 function App() {
   return (
@@ -22,6 +37,7 @@ function App() {
       <Provider store={store}>
         <AuthProvider>
           <Router>
+            <PageViewTracker />
             <div className="min-h-screen bg-gray-50">
               <Header />
               <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
