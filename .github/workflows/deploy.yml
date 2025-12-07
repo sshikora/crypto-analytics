@@ -52,11 +52,13 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           cd frontend
-          # Create production environment file
+          # Create production environment file with secrets from GitHub Secrets
           echo "VITE_GRAPHQL_URL=https://api.cryptoquantlab.com/graphql" > .env.production
-          echo "VITE_COGNITO_USER_POOL_ID=us-east-1_dBsPJ5K4G" >> .env.production
-          echo "VITE_COGNITO_CLIENT_ID=687v6ninm2ccb3juaqc6u8gqka" >> .env.production
+          echo "VITE_COGNITO_USER_POOL_ID=${{ secrets.VITE_COGNITO_USER_POOL_ID }}" >> .env.production
+          echo "VITE_COGNITO_CLIENT_ID=${{ secrets.VITE_COGNITO_CLIENT_ID }}" >> .env.production
           echo "VITE_AWS_REGION=us-east-1" >> .env.production
+          echo "VITE_POSTHOG_API_KEY=${{ secrets.VITE_POSTHOG_API_KEY }}" >> .env.production
+          echo "VITE_POSTHOG_HOST=https://us.i.posthog.com" >> .env.production
           docker build --platform linux/amd64 -t $ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_FRONTEND_REPO:latest .
           docker push $ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_FRONTEND_REPO:latest

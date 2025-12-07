@@ -352,6 +352,40 @@ COINGECKO_API_KEY=  # Optional, for rate limit increases
 VITE_GRAPHQL_URL=http://localhost:4000/graphql
 ```
 
+## GitHub Secrets Configuration
+
+For automated deployments via GitHub Actions, configure the following secrets in your GitHub repository settings (Settings → Secrets and variables → Actions):
+
+### Required Secrets
+
+| Secret Name | Description | Example |
+|-------------|-------------|---------|
+| `AWS_ACCESS_KEY_ID` | AWS IAM access key for deployment | `AKIAIOSFODNN7EXAMPLE` |
+| `AWS_SECRET_ACCESS_KEY` | AWS IAM secret access key | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` |
+| `VITE_COGNITO_USER_POOL_ID` | AWS Cognito User Pool ID | `us-east-1_dBsPJ5K4G` |
+| `VITE_COGNITO_CLIENT_ID` | AWS Cognito App Client ID | `687v6ninm2ccb3juaqc6u8gqka` |
+| `VITE_POSTHOG_API_KEY` | PostHog analytics API key | `phc_...` |
+
+### Why Secrets in GitHub Actions?
+
+The `.env.production` file in the repository contains **placeholders only**. Real secrets are:
+1. Stored securely in GitHub Secrets
+2. Injected during the build process (see `.github/workflows/deploy.yml`)
+3. Never committed to the repository
+
+This ensures that:
+- Secrets are not exposed in version control
+- Different environments can use different credentials
+- Secrets can be rotated without code changes
+
+### Setting Up GitHub Secrets
+
+1. Go to your GitHub repository
+2. Navigate to **Settings → Secrets and variables → Actions**
+3. Click **New repository secret**
+4. Add each secret from the table above
+5. Secrets are automatically injected during deployment
+
 ## API Rate Limiting
 
 The CoinGecko free API has rate limits:
