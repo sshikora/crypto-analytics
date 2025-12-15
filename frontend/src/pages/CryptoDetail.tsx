@@ -6,6 +6,7 @@ import { MovingAverageChart } from '../components/MovingAverageChart';
 import { StatCard } from '../components/StatCard';
 import { TimeRangeSelector } from '../components/TimeRangeSelector';
 import { LoadingSpinner } from '../components/LoadingSpinner';
+import { SEO } from '../components/SEO';
 import { GET_CRYPTOCURRENCY, GET_PRICE_HISTORY, GET_MARKET_STATS } from '../services/queries';
 import { TimeRange } from '../types/crypto';
 import { format } from 'date-fns';
@@ -96,14 +97,43 @@ export const CryptoDetail: React.FC = () => {
 
   const isPositive = (crypto.priceChangePercentage24h ?? 0) >= 0;
 
+  const formatPrice = (price?: number) => {
+    if (price === undefined || price === null) return 'N/A';
+    if (price < 0.01) return `$${price.toFixed(6)}`;
+    if (price < 1) return `$${price.toFixed(4)}`;
+    return `$${price.toLocaleString()}`;
+  };
+
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@type": "FinancialProduct",
+    "name": crypto.name,
+    "description": `${crypto.name} (${crypto.symbol}) - Real-time price, market cap, and analytics`,
+    "category": "Cryptocurrency",
+    "offers": {
+      "@type": "Offer",
+      "price": crypto.currentPrice,
+      "priceCurrency": "USD",
+      "availability": "https://schema.org/InStock"
+    }
+  };
+
   return (
-    <div className="space-y-6">
-      <button
-        onClick={() => navigate('/')}
-        className="text-primary-600 hover:text-primary-700 font-medium"
-      >
-        ← Back to Dashboard
-      </button>
+    <>
+      <SEO
+        title={`${crypto.name} (${crypto.symbol}) Price & Analytics | CryptoQuantLab`}
+        description={`Track ${crypto.name} (${crypto.symbol}) live price: ${formatPrice(crypto.currentPrice)}. View ${crypto.name} market cap, 24h trading volume, price charts, and detailed analytics.`}
+        keywords={`${crypto.name}, ${crypto.symbol}, ${crypto.symbol.toLowerCase()} price, ${crypto.name.toLowerCase()} price, cryptocurrency, crypto analytics, ${crypto.symbol.toLowerCase()} chart`}
+        canonicalUrl={`/crypto/${crypto.symbol}`}
+        structuredData={structuredData}
+      />
+      <div className="space-y-6">
+        <button
+          onClick={() => navigate('/')}
+          className="text-primary-600 hover:text-primary-700 font-medium"
+        >
+          ← Back to Dashboard
+        </button>
 
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
@@ -239,6 +269,7 @@ export const CryptoDetail: React.FC = () => {
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 };

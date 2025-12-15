@@ -17,6 +17,7 @@ import {
   rectSortingStrategy,
 } from '@dnd-kit/sortable';
 import { LoadingSpinner } from '../components/LoadingSpinner';
+import { SEO } from '../components/SEO';
 import { GET_TOP_CRYPTOCURRENCIES } from '../services/queries';
 import { Cryptocurrency } from '../types/crypto';
 import { useAuth } from '../context/AuthContext';
@@ -110,9 +111,16 @@ export const Dashboard: React.FC = () => {
     .filter((c): c is Cryptocurrency => c !== undefined);
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">Cryptocurrency Dashboard</h1>
+    <>
+      <SEO
+        title="Cryptocurrency Dashboard - CryptoQuantLab"
+        description="Track top cryptocurrencies including Bitcoin, Ethereum, and more. Real-time prices, market caps, and 24h changes on your customizable dashboard."
+        keywords="cryptocurrency dashboard, crypto prices, bitcoin price, ethereum price, live crypto data, crypto portfolio, BTC, ETH"
+        canonicalUrl="/"
+      />
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h1 className="text-3xl font-bold text-gray-900">Cryptocurrency Dashboard</h1>
         <div className="flex gap-2">
           <button
             onClick={() => setShowCoinSelector(true)}
@@ -216,6 +224,7 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 };

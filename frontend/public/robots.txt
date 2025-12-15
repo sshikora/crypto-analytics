@@ -1,0 +1,16 @@
+# https://www.robotstxt.org/robotstxt.html
+User-agent: *
+Allow: /
+
+# Disallow login and auth pages from search engines
+Disallow: /login
+Disallow: /signup
+Disallow: /forgot-password
+
+# Allow all other pages
+Allow: /
+Allow: /markets
+Allow: /crypto/*
+
+# Sitemap
+Sitemap: https://cryptoquantlab.com/sitemap.xml

@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { ApolloProvider } from '@apollo/client';
 import { Provider } from 'react-redux';
+import { HelmetProvider } from 'react-helmet-async';
 import { Header } from './components/Header';
 import { Dashboard } from './pages/Dashboard';
 import { CryptoDetail } from './pages/CryptoDetail';
@@ -33,28 +34,30 @@ function PageViewTracker() {
 
 function App() {
   return (
-    <ApolloProvider client={apolloClient}>
-      <Provider store={store}>
-        <AuthProvider>
-          <Router>
-            <PageViewTracker />
-            <div className="min-h-screen bg-gray-50">
-              <Header />
-              <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <Routes>
-                  <Route path="/" element={<Dashboard />} />
-                  <Route path="/markets" element={<Markets />} />
-                  <Route path="/crypto/:symbol" element={<CryptoDetail />} />
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/signup" element={<SignUp />} />
-                  <Route path="/forgot-password" element={<ForgotPassword />} />
-                </Routes>
-              </main>
-            </div>
-          </Router>
-        </AuthProvider>
-      </Provider>
-    </ApolloProvider>
+    <HelmetProvider>
+      <ApolloProvider client={apolloClient}>
+        <Provider store={store}>
+          <AuthProvider>
+            <Router>
+              <PageViewTracker />
+              <div className="min-h-screen bg-gray-50">
+                <Header />
+                <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                  <Routes>
+                    <Route path="/" element={<Dashboard />} />
+                    <Route path="/markets" element={<Markets />} />
+                    <Route path="/crypto/:symbol" element={<CryptoDetail />} />
+                    <Route path="/login" element={<Login />} />
+                    <Route path="/signup" element={<SignUp />} />
+                    <Route path="/forgot-password" element={<ForgotPassword />} />
+                  </Routes>
+                </main>
+              </div>
+            </Router>
+          </AuthProvider>
+        </Provider>
+      </ApolloProvider>
+    </HelmetProvider>
   );
 }
 

@@ -2,6 +2,7 @@ import React from 'react';
 import { useQuery } from '@apollo/client';
 import { useNavigate } from 'react-router-dom';
 import { LoadingSpinner } from '../components/LoadingSpinner';
+import { SEO } from '../components/SEO';
 import { GET_TOP_CRYPTOCURRENCIES } from '../services/queries';
 import { Cryptocurrency } from '../types/crypto';
 
@@ -32,9 +33,16 @@ export const Markets: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">Cryptocurrency Markets</h1>
+    <>
+      <SEO
+        title="Cryptocurrency Markets - Top 50 Cryptocurrencies | CryptoQuantLab"
+        description="Browse the top 50 cryptocurrencies by market cap. View real-time prices, 24h changes, trading volumes, and market capitalizations for Bitcoin, Ethereum, and more."
+        keywords="cryptocurrency market, crypto market cap, top cryptocurrencies, bitcoin market cap, ethereum market cap, crypto trading volume, altcoins, crypto rankings"
+        canonicalUrl="/markets"
+      />
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h1 className="text-3xl font-bold text-gray-900">Cryptocurrency Markets</h1>
         <button onClick={() => refetch()} className="btn btn-primary">
           Refresh Data
         </button>
@@ -102,6 +110,7 @@ export const Markets: React.FC = () => {
           </tbody>
         </table>
       </div>
-    </div>
+      </div>
+    </>
   );
 };
