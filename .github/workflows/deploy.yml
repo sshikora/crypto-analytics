@@ -54,6 +54,7 @@ jobs:
           cd frontend
           # Create production environment file with secrets from GitHub Secrets
           echo "VITE_GRAPHQL_URL=https://api.cryptoquantlab.com/graphql" > .env.production
+          echo "VITE_API_KEY=${{ secrets.VITE_API_KEY }}" >> .env.production
           echo "VITE_COGNITO_USER_POOL_ID=${{ secrets.VITE_COGNITO_USER_POOL_ID }}" >> .env.production
           echo "VITE_COGNITO_CLIENT_ID=${{ secrets.VITE_COGNITO_CLIENT_ID }}" >> .env.production
           echo "VITE_AWS_REGION=us-east-1" >> .env.production
@@ -67,6 +68,16 @@ jobs:
       - name: Update kubeconfig
         run: |
           aws eks update-kubeconfig --name $EKS_CLUSTER_NAME --region $AWS_REGION
+
+      - name: Create/Update Backend Secrets
+        run: |
+          # Delete existing secret if it exists (ignore errors)
+          kubectl delete secret backend-secrets -n $NAMESPACE --ignore-not-found=true
+
+          # Create new secret with API key from GitHub Secrets
+          kubectl create secret generic backend-secrets \
+            --from-literal=API_KEY=${{ secrets.VITE_API_KEY }} \
+            -n $NAMESPACE
 
       - name: Deploy to EKS
         env:
