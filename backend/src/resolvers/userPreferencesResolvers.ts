@@ -7,8 +7,13 @@ export const userPreferencesResolvers = {
       { userId }: { userId: string },
       context: any
     ): Promise<UserPreferences | null> => {
+      // Debug logging
+      console.log('userPreferences query - userId:', userId);
+      console.log('userPreferences query - context.user:', context.user);
+
       // Verify user can only access their own preferences
       if (!context.user) {
+        console.error('No user in context - authentication required');
         throw new Error('Authentication required');
       }
 

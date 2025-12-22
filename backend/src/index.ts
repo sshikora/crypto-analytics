@@ -44,15 +44,19 @@ const schema = createSchema({
   resolvers,
 });
 
-const yoga = createYoga({
+// Create Yoga instance with proper Express integration
+const yoga = createYoga<{
+  req: AuthenticatedRequest;
+  res: express.Response;
+}>({
   schema,
   graphqlEndpoint: '/graphql',
   cors: false, // CORS is handled by Express
-  context: async ({ request }) => {
-    // Extract user from request (set by optionalJwtAuth middleware)
-    const req = request as unknown as AuthenticatedRequest;
+  context: ({ req }) => {
+    console.log('[Yoga Context] Creating context');
+    console.log('[Yoga Context] req.user:', req?.user);
     return {
-      user: req.user || null,
+      user: req?.user || null,
     };
   },
 });

@@ -2,17 +2,26 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import jwksClient from 'jwks-rsa';
 
-const COGNITO_USER_POOL_ID = process.env.COGNITO_USER_POOL_ID || '';
-const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
+// Don't use constants - read from process.env at runtime to ensure dotenv is loaded
+function getCognitoConfig() {
+  return {
+    userPoolId: process.env.COGNITO_USER_POOL_ID || '',
+    region: process.env.AWS_REGION || 'us-east-1',
+  };
+}
 
-// JWKS client to fetch public keys from Cognito
-const client = jwksClient({
-  jwksUri: `https://cognito-idp.${AWS_REGION}.amazonaws.com/${COGNITO_USER_POOL_ID}/.well-known/jwks.json`,
-  cache: true,
-  cacheMaxAge: 600000, // 10 minutes
-});
+// JWKS client factory - creates client on demand
+function getJwksClient() {
+  const config = getCognitoConfig();
+  return jwksClient({
+    jwksUri: `https://cognito-idp.${config.region}.amazonaws.com/${config.userPoolId}/.well-known/jwks.json`,
+    cache: true,
+    cacheMaxAge: 600000, // 10 minutes
+  });
+}
 
 function getKey(header: any, callback: any) {
+  const client = getJwksClient();
   client.getSigningKey(header.kid, (err, key) => {
     if (err) {
       callback(err, null);
@@ -50,8 +59,9 @@ export const jwtAuth = async (
   }
 
   const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+  const config = getCognitoConfig();
 
-  if (!COGNITO_USER_POOL_ID) {
+  if (!config.userPoolId) {
     console.warn('WARNING: COGNITO_USER_POOL_ID not set. JWT validation disabled!');
     return next();
   }
@@ -64,7 +74,7 @@ export const jwtAuth = async (
         getKey,
         {
           algorithms: ['RS256'],
-          issuer: `https://cognito-idp.${AWS_REGION}.amazonaws.com/${COGNITO_USER_POOL_ID}`,
+          issuer: `https://cognito-idp.${config.region}.amazonaws.com/${config.userPoolId}`,
         },
         (err, decoded) => {
           if (err) reject(err);
@@ -100,16 +110,23 @@ export const optionalJwtAuth = async (
 ) => {
   const authHeader = req.headers.authorization;
 
+  console.log('[JWT] Authorization header:', authHeader ? 'Present (Bearer ' + authHeader.substring(7, 27) + '...)' : 'Missing');
+
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     // No token provided, continue as anonymous
+    console.log('[JWT] No Bearer token found, continuing as anonymous');
     return next();
   }
 
   const token = authHeader.substring(7);
+  const config = getCognitoConfig();
 
-  if (!COGNITO_USER_POOL_ID) {
+  if (!config.userPoolId) {
+    console.warn('[JWT] COGNITO_USER_POOL_ID not configured, skipping JWT verification');
     return next();
   }
+
+  console.log('[JWT] Attempting to verify token for pool:', config.userPoolId);
 
   try {
     const decoded = await new Promise<any>((resolve, reject) => {
@@ -118,7 +135,7 @@ export const optionalJwtAuth = async (
         getKey,
         {
           algorithms: ['RS256'],
-          issuer: `https://cognito-idp.${AWS_REGION}.amazonaws.com/${COGNITO_USER_POOL_ID}`,
+          issuer: `https://cognito-idp.${config.region}.amazonaws.com/${config.userPoolId}`,
         },
         (err, decoded) => {
           if (err) reject(err);
@@ -132,9 +149,11 @@ export const optionalJwtAuth = async (
       email: decoded.email,
       ...decoded,
     };
+    console.log('[JWT] Token verified successfully. User:', decoded.sub, decoded.email);
   } catch (error) {
     // Invalid token, continue as anonymous
-    console.warn('Invalid JWT token provided, continuing as anonymous');
+    console.warn('[JWT] Invalid JWT token provided, continuing as anonymous');
+    console.warn('[JWT] Error:', error instanceof Error ? error.message : error);
   }
 
   next();
