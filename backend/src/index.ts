@@ -45,16 +45,13 @@ const schema = createSchema({
 });
 
 // Create Yoga instance with proper Express integration
-const yoga = createYoga<{
-  req: AuthenticatedRequest;
-  res: express.Response;
-}>({
+const yoga = createYoga({
   schema,
   graphqlEndpoint: '/graphql',
   cors: false, // CORS is handled by Express
-  context: ({ req }) => {
-    console.log('[Yoga Context] Creating context');
-    console.log('[Yoga Context] req.user:', req?.user);
+  context: (initialContext) => {
+    // When using Yoga with Express, the context includes req and res
+    const req = (initialContext as any).req as AuthenticatedRequest;
     return {
       user: req?.user || null,
     };

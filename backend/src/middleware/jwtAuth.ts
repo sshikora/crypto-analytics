@@ -110,11 +110,8 @@ export const optionalJwtAuth = async (
 ) => {
   const authHeader = req.headers.authorization;
 
-  console.log('[JWT] Authorization header:', authHeader ? 'Present (Bearer ' + authHeader.substring(7, 27) + '...)' : 'Missing');
-
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     // No token provided, continue as anonymous
-    console.log('[JWT] No Bearer token found, continuing as anonymous');
     return next();
   }
 
@@ -125,8 +122,6 @@ export const optionalJwtAuth = async (
     console.warn('[JWT] COGNITO_USER_POOL_ID not configured, skipping JWT verification');
     return next();
   }
-
-  console.log('[JWT] Attempting to verify token for pool:', config.userPoolId);
 
   try {
     const decoded = await new Promise<any>((resolve, reject) => {
@@ -149,11 +144,9 @@ export const optionalJwtAuth = async (
       email: decoded.email,
       ...decoded,
     };
-    console.log('[JWT] Token verified successfully. User:', decoded.sub, decoded.email);
   } catch (error) {
     // Invalid token, continue as anonymous
-    console.warn('[JWT] Invalid JWT token provided, continuing as anonymous');
-    console.warn('[JWT] Error:', error instanceof Error ? error.message : error);
+    console.warn('[JWT] Invalid JWT token:', error instanceof Error ? error.message : error);
   }
 
   next();
