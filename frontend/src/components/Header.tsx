@@ -18,7 +18,7 @@ export const Header = () => {
         <div className="flex justify-between items-center py-4">
           <Link to="/" className="flex items-center space-x-2">
             <div className="text-2xl font-bold text-primary-600">
-              Crypto Analytics
+              Crypto Quant Lab
             </div>
           </Link>
           <div className="flex items-center space-x-6">
