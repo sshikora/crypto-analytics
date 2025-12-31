@@ -1,10 +1,5 @@
 # AWS Cognito User Pool for user authentication
 
-# SES Email Identity for sending from custom domain
-resource "aws_ses_email_identity" "noreply" {
-  email = "noreply@${var.domain_name}"
-}
-
 # Verify the entire domain for SES
 resource "aws_ses_domain_identity" "main" {
   domain = var.domain_name
@@ -59,12 +54,13 @@ resource "aws_cognito_user_pool" "main" {
     }
   }
 
-  # Email configuration for password reset
-  # Using COGNITO_DEFAULT because SES is in sandbox mode
-  # To use custom domain emails, you need to request production access for SES:
-  # https://docs.aws.amazon.com/ses/latest/dg/request-production-access.html
+  # Email configuration - use SES with custom domain
+  # Since cryptoquantlab.com is verified in SES, we can send from any email under this domain
   email_configuration {
-    email_sending_account = "COGNITO_DEFAULT"
+    email_sending_account  = "DEVELOPER"
+    source_arn            = aws_ses_domain_identity.main.arn
+    from_email_address    = "Crypto Quant Lab <noreply@${var.domain_name}>"
+    reply_to_email_address = "support@${var.domain_name}"
   }
 
   # Verification message
