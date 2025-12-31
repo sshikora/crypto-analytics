@@ -90,6 +90,17 @@ resource "aws_iam_role_policy_attachment" "node_group_dynamodb" {
   role       = module.eks.node_group_role_name
 }
 
+# Email Module (AWS SES + Google Workspace DNS)
+module "email" {
+  source = "../../modules/email"
+
+  domain_name         = var.domain_name
+  environment         = var.environment
+  route53_zone_id     = module.route53.zone_id
+  eks_node_role_name  = module.eks.node_group_role_name
+  google_dkim_value   = var.google_dkim_value
+}
+
 # Configure Kubernetes provider
 provider "kubernetes" {
   host                   = module.eks.cluster_endpoint

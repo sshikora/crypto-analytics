@@ -10,6 +10,8 @@ data:
   DYNAMODB_PREFERENCES_TABLE: "crypto-analytics-production-user-preferences"
   ALLOWED_ORIGINS: "https://cryptoquantlab.com"
   COGNITO_USER_POOL_ID: "us-east-1_dBsPJ5K4G"
+  DOMAIN_NAME: "cryptoquantlab.com"
+  EMAIL_FROM_NAME: "Crypto Quant Lab"
 ---
 # Secret for API_KEY is automatically created by GitHub Actions
 # during deployment from GitHub Secret: VITE_API_KEY
@@ -78,6 +80,16 @@ spec:
             secretKeyRef:
               name: backend-secrets
               key: API_KEY
+        - name: DOMAIN_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: backend-config
+              key: DOMAIN_NAME
+        - name: EMAIL_FROM_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: backend-config
+              key: EMAIL_FROM_NAME
         resources:
           requests:
             memory: "256Mi"

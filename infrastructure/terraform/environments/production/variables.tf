@@ -77,3 +77,10 @@ variable "single_nat_gateway" {
   type        = bool
   default     = false
 }
+
+variable "google_dkim_value" {
+  description = "Google Workspace DKIM TXT record value (stored in GitHub Secrets as GOOGLE_DKIM_VALUE)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
