@@ -35,6 +35,12 @@ export const Header = () => {
               >
                 Markets
               </Link>
+              <Link
+                to="/about"
+                className="text-gray-700 hover:text-primary-600 font-medium transition-colors"
+              >
+                About
+              </Link>
             </nav>
             <div className="flex items-center space-x-3 ml-4 pl-4 border-l border-gray-200">
               {isLoading ? (
