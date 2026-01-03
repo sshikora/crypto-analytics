@@ -25,3 +25,18 @@
     @apply bg-gray-200 text-gray-800 hover:bg-gray-300;
   }
 }
+
+@layer utilities {
+  .animate-shrink-width {
+    animation: shrink-width linear forwards;
+  }
+}
+
+@keyframes shrink-width {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}

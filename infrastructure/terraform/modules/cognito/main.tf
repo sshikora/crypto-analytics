@@ -214,10 +214,106 @@ resource "aws_dynamodb_table" "user_preferences" {
   }
 }
 
+# DynamoDB table for notification rules
+resource "aws_dynamodb_table" "notification_rules" {
+  name           = "${var.project_name}-${var.environment}-notification-rules"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "ruleId"
+
+  attribute {
+    name = "ruleId"
+    type = "S"
+  }
+
+  attribute {
+    name = "userId"
+    type = "S"
+  }
+
+  # GSI for querying rules by userId
+  global_secondary_index {
+    name            = "userId-index"
+    hash_key        = "userId"
+    projection_type = "ALL"
+  }
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-notification-rules"
+    Environment = var.environment
+    Project     = var.project_name
+  }
+}
+
+# DynamoDB table for notifications
+resource "aws_dynamodb_table" "notifications" {
+  name           = "${var.project_name}-${var.environment}-notifications"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "notificationId"
+
+  attribute {
+    name = "notificationId"
+    type = "S"
+  }
+
+  attribute {
+    name = "userId"
+    type = "S"
+  }
+
+  attribute {
+    name = "createdAt"
+    type = "S"
+  }
+
+  # GSI for querying notifications by userId, sorted by createdAt
+  global_secondary_index {
+    name            = "userId-createdAt-index"
+    hash_key        = "userId"
+    range_key       = "createdAt"
+    projection_type = "ALL"
+  }
+
+  # TTL to automatically delete old notifications after 30 days
+  ttl {
+    attribute_name = "expiresAt"
+    enabled        = true
+  }
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-notifications"
+    Environment = var.environment
+    Project     = var.project_name
+  }
+}
+
+# DynamoDB table for email rate limits
+resource "aws_dynamodb_table" "email_rate_limits" {
+  name           = "${var.project_name}-${var.environment}-email-rate-limits"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "userId"
+
+  attribute {
+    name = "userId"
+    type = "S"
+  }
+
+  # TTL to automatically clean up old rate limit records
+  ttl {
+    attribute_name = "expiresAt"
+    enabled        = true
+  }
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-email-rate-limits"
+    Environment = var.environment
+    Project     = var.project_name
+  }
+}
+
 # IAM policy for accessing DynamoDB from backend
 resource "aws_iam_policy" "dynamodb_access" {
   name        = "${var.project_name}-${var.environment}-dynamodb-access"
-  description = "Policy for accessing user preferences DynamoDB table"
+  description = "Policy for accessing DynamoDB tables"
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -230,9 +326,17 @@ resource "aws_iam_policy" "dynamodb_access" {
           "dynamodb:UpdateItem",
           "dynamodb:DeleteItem",
           "dynamodb:Query",
+          "dynamodb:Scan",
+          "dynamodb:BatchGetItem",
+          "dynamodb:BatchWriteItem",
         ]
         Resource = [
           aws_dynamodb_table.user_preferences.arn,
+          aws_dynamodb_table.notification_rules.arn,
+          "${aws_dynamodb_table.notification_rules.arn}/index/*",
+          aws_dynamodb_table.notifications.arn,
+          "${aws_dynamodb_table.notifications.arn}/index/*",
+          aws_dynamodb_table.email_rate_limits.arn,
         ]
       }
     ]

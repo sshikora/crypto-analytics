@@ -7,6 +7,7 @@ import { StatCard } from '../components/StatCard';
 import { TimeRangeSelector } from '../components/TimeRangeSelector';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { SEO } from '../components/SEO';
+import NotificationRulesList from '../components/NotificationRulesList';
 import { GET_CRYPTOCURRENCY, GET_PRICE_HISTORY, GET_MARKET_STATS } from '../services/queries';
 import { TimeRange } from '../types/crypto';
 import { format } from 'date-fns';
@@ -16,7 +17,7 @@ import { posthog } from '../services/posthog';
 export const CryptoDetail: React.FC = () => {
   const { symbol } = useParams<{ symbol: string }>();
   const navigate = useNavigate();
-  const { preferences } = useAuth();
+  const { preferences, isAuthenticated } = useAuth();
   const [timeRange, setTimeRange] = useState<TimeRange>(TimeRange.DAY);
   const [maTimeRange, setMaTimeRange] = useState<TimeRange>(TimeRange.MONTH);
 
@@ -215,6 +216,14 @@ export const CryptoDetail: React.FC = () => {
           <p className="text-gray-500 text-center py-8">No data available for moving averages</p>
         )}
       </div>
+
+      {/* Crossover Alerts - only show when authenticated */}
+      {isAuthenticated && crypto && (
+        <NotificationRulesList
+          coinId={crypto.coinGeckoId}
+          coinSymbol={crypto.symbol}
+        />
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="card">

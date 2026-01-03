@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import NotificationBell from './NotificationBell';
 
 export const Header = () => {
   const { user, isAuthenticated, isLoading, signOut } = useAuth();
@@ -47,6 +48,7 @@ export const Header = () => {
                 <span className="text-gray-400 text-sm">Loading...</span>
               ) : isAuthenticated ? (
                 <>
+                  <NotificationBell />
                   <span className="text-sm text-gray-600">{user?.email}</span>
                   <button
                     onClick={handleSignOut}

@@ -33,6 +33,21 @@ output "dynamodb_table_arn" {
   value       = aws_dynamodb_table.user_preferences.arn
 }
 
+output "notification_rules_table_name" {
+  description = "The name of the DynamoDB table for notification rules"
+  value       = aws_dynamodb_table.notification_rules.name
+}
+
+output "notifications_table_name" {
+  description = "The name of the DynamoDB table for notifications"
+  value       = aws_dynamodb_table.notifications.name
+}
+
+output "email_rate_limits_table_name" {
+  description = "The name of the DynamoDB table for email rate limits"
+  value       = aws_dynamodb_table.email_rate_limits.name
+}
+
 output "dynamodb_access_policy_arn" {
   description = "The ARN of the IAM policy for DynamoDB access"
   value       = aws_iam_policy.dynamodb_access.arn
