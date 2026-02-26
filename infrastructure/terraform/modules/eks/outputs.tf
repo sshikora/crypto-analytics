@@ -37,3 +37,8 @@ output "node_group_role_name" {
   description = "Name of the node group IAM role"
   value       = aws_iam_role.node_group.name
 }
+
+output "cluster_autoscaler_policy_arn" {
+  description = "ARN of the Cluster Autoscaler IAM policy"
+  value       = aws_iam_policy.cluster_autoscaler.arn
+}

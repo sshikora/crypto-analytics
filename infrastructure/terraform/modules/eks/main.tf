@@ -118,8 +118,50 @@ resource "aws_eks_node_group" "main" {
   ]
 
   tags = {
-    Name = "${var.project_name}-${var.environment}-${each.key}"
+    Name                                                              = "${var.project_name}-${var.environment}-${each.key}"
+    "k8s.io/cluster-autoscaler/enabled"                              = "true"
+    "k8s.io/cluster-autoscaler/${var.project_name}-${var.environment}" = "owned"
   }
+}
+
+# IAM policy for Cluster Autoscaler
+resource "aws_iam_policy" "cluster_autoscaler" {
+  name        = "${var.project_name}-${var.environment}-cluster-autoscaler"
+  description = "IAM policy for Cluster Autoscaler"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "autoscaling:DescribeAutoScalingGroups",
+          "autoscaling:DescribeAutoScalingInstances",
+          "autoscaling:DescribeLaunchConfigurations",
+          "autoscaling:DescribeScalingActivities",
+          "autoscaling:DescribeTags",
+          "ec2:DescribeLaunchTemplateVersions",
+          "ec2:DescribeInstanceTypes",
+          "eks:DescribeNodegroup",
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "autoscaling:SetDesiredCapacity",
+          "autoscaling:TerminateInstanceInAutoScalingGroup",
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "autoscaling:ResourceTag/k8s.io/cluster-autoscaler/enabled" = "true"
+            "autoscaling:ResourceTag/k8s.io/cluster-autoscaler/${var.project_name}-${var.environment}" = "owned"
+          }
+        }
+      }
+    ]
+  })
 }
 
 # IAM policy for AWS Load Balancer Controller

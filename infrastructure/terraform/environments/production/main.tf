@@ -90,6 +90,12 @@ resource "aws_iam_role_policy_attachment" "node_group_dynamodb" {
   role       = module.eks.node_group_role_name
 }
 
+# Attach Cluster Autoscaler policy to EKS node group role
+resource "aws_iam_role_policy_attachment" "node_group_cluster_autoscaler" {
+  policy_arn = module.eks.cluster_autoscaler_policy_arn
+  role       = module.eks.node_group_role_name
+}
+
 # Email Module (AWS SES + Google Workspace DNS)
 module "email" {
   source = "../../modules/email"
@@ -207,6 +213,40 @@ resource "helm_release" "aws_load_balancer_controller" {
 #     helm_release.aws_load_balancer_controller
 #   ]
 # }
+
+# Install Cluster Autoscaler for automatic node scale-down
+resource "helm_release" "cluster_autoscaler" {
+  name       = "cluster-autoscaler"
+  repository = "https://kubernetes.github.io/autoscaler"
+  chart      = "cluster-autoscaler"
+  namespace  = "kube-system"
+  version    = "9.43.0"
+
+  timeout = 300
+  wait    = true
+
+  set {
+    name  = "autoDiscovery.clusterName"
+    value = module.eks.cluster_name
+  }
+
+  set {
+    name  = "awsRegion"
+    value = var.aws_region
+  }
+
+  set {
+    name  = "extraArgs.balance-similar-node-groups"
+    value = "true"
+  }
+
+  set {
+    name  = "extraArgs.skip-nodes-with-system-pods"
+    value = "false"
+  }
+
+  depends_on = [module.eks, aws_iam_role_policy_attachment.node_group_cluster_autoscaler]
+}
 
 # Install Cert Manager for SSL certificates
 resource "helm_release" "cert_manager" {
