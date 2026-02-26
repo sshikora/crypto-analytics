@@ -21,8 +21,8 @@ cluster_version = "1.33"
 # Node Groups - Spot Instances (saves ~60-90%)
 node_groups = {
   spot-general = {
-    desired_size   = 2
-    min_size       = 2
+    desired_size   = 1
+    min_size       = 1
     max_size       = 3
     instance_types = ["t3.small", "t3a.small"]  # Smaller instances
     capacity_type  = "SPOT"  # Use spot instances for massive savings
