@@ -8,6 +8,9 @@ data:
   NODE_ENV: "production"
   AWS_REGION: "us-east-1"
   DYNAMODB_PREFERENCES_TABLE: "crypto-analytics-production-user-preferences"
+  DYNAMODB_NOTIFICATION_RULES_TABLE: "crypto-analytics-production-notification-rules"
+  DYNAMODB_NOTIFICATIONS_TABLE: "crypto-analytics-production-notifications"
+  DYNAMODB_EMAIL_RATE_LIMIT_TABLE: "crypto-analytics-production-email-rate-limits"
   ALLOWED_ORIGINS: "https://cryptoquantlab.com"
   COGNITO_USER_POOL_ID: "us-east-1_dBsPJ5K4G"
   DOMAIN_NAME: "cryptoquantlab.com"
@@ -65,6 +68,21 @@ spec:
             configMapKeyRef:
               name: backend-config
               key: DYNAMODB_PREFERENCES_TABLE
+        - name: DYNAMODB_NOTIFICATION_RULES_TABLE
+          valueFrom:
+            configMapKeyRef:
+              name: backend-config
+              key: DYNAMODB_NOTIFICATION_RULES_TABLE
+        - name: DYNAMODB_NOTIFICATIONS_TABLE
+          valueFrom:
+            configMapKeyRef:
+              name: backend-config
+              key: DYNAMODB_NOTIFICATIONS_TABLE
+        - name: DYNAMODB_EMAIL_RATE_LIMIT_TABLE
+          valueFrom:
+            configMapKeyRef:
+              name: backend-config
+              key: DYNAMODB_EMAIL_RATE_LIMIT_TABLE
         - name: ALLOWED_ORIGINS
           valueFrom:
             configMapKeyRef:
