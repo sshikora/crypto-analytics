@@ -98,6 +98,11 @@ spec:
             secretKeyRef:
               name: backend-secrets
               key: API_KEY
+        - name: COINGECKO_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: backend-secrets
+              key: COINGECKO_API_KEY
         - name: DOMAIN_NAME
           valueFrom:
             configMapKeyRef:

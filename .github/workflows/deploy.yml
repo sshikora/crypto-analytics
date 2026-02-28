@@ -127,6 +127,7 @@ jobs:
           # Create new secret with API key from GitHub Secrets
           kubectl create secret generic backend-secrets \
             --from-literal=API_KEY=${{ secrets.VITE_API_KEY }} \
+            --from-literal=COINGECKO_API_KEY=${{ secrets.COINGECKO_API_KEY }} \
             -n $NAMESPACE
 
       - name: Deploy to EKS

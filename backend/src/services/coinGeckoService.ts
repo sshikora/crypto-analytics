@@ -1,9 +1,22 @@
-import axios from 'axios';
+import axios, { AxiosRequestConfig } from 'axios';
 import NodeCache from 'node-cache';
 
 const cache = new NodeCache({ stdTTL: 300 }); // Cache for 5 minutes
 
-const COINGECKO_API_BASE = 'https://api.coingecko.com/api/v3';
+const COINGECKO_API_KEY = process.env.COINGECKO_API_KEY;
+const COINGECKO_API_BASE = COINGECKO_API_KEY?.startsWith('CG-')
+  ? 'https://pro-api.coingecko.com/api/v3'
+  : 'https://api.coingecko.com/api/v3';
+
+function buildRequestConfig(params?: Record<string, any>): AxiosRequestConfig {
+  const config: AxiosRequestConfig = { params };
+  if (COINGECKO_API_KEY) {
+    config.headers = COINGECKO_API_KEY.startsWith('CG-')
+      ? { 'x-cg-pro-api-key': COINGECKO_API_KEY }
+      : { 'x-cg-demo-api-key': COINGECKO_API_KEY };
+  }
+  return config;
+}
 
 export interface CoinGeckoMarketData {
   id: string;
@@ -57,7 +70,7 @@ class CoinGeckoService {
 
       const response = await axios.get<CoinGeckoMarketData[]>(
         `${COINGECKO_API_BASE}/coins/markets`,
-        { params }
+        buildRequestConfig(params)
       );
 
       cache.set(cacheKey, response.data);
@@ -82,12 +95,10 @@ class CoinGeckoService {
     try {
       const response = await axios.get<CoinGeckoPriceHistory>(
         `${COINGECKO_API_BASE}/coins/${coinId}/market_chart`,
-        {
-          params: {
-            vs_currency: 'usd',
-            days,
-          },
-        }
+        buildRequestConfig({
+          vs_currency: 'usd',
+          days,
+        })
       );
 
       cache.set(cacheKey, response.data);
@@ -122,14 +133,12 @@ class CoinGeckoService {
     try {
       const response = await axios.get(
         `${COINGECKO_API_BASE}/coins/${coinId}`,
-        {
-          params: {
-            localization: false,
-            tickers: false,
-            community_data: false,
-            developer_data: false,
-          },
-        }
+        buildRequestConfig({
+          localization: false,
+          tickers: false,
+          community_data: false,
+          developer_data: false,
+        })
       );
 
       cache.set(cacheKey, response.data);
