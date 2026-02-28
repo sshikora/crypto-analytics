@@ -57,6 +57,9 @@ const yoga = createYoga({
   graphqlEndpoint: '/graphql',
   cors: false, // CORS is handled by Express
   maskedErrors: process.env.NODE_ENV === 'production', // Show full errors in development
+  graphiql: process.env.NODE_ENV !== 'production' && {
+    headers: JSON.stringify({ 'x-api-key': process.env.API_KEY }),
+  },
   context: (initialContext) => {
     // When using Yoga with Express, the context includes req and res
     const req = (initialContext as any).req as AuthenticatedRequest;

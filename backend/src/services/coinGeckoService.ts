@@ -3,19 +3,22 @@ import NodeCache from 'node-cache';
 
 const cache = new NodeCache({ stdTTL: 300 }); // Cache for 5 minutes
 
-const COINGECKO_API_KEY = process.env.COINGECKO_API_KEY;
-const COINGECKO_API_BASE = COINGECKO_API_KEY?.startsWith('CG-')
-  ? 'https://pro-api.coingecko.com/api/v3'
-  : 'https://api.coingecko.com/api/v3';
-
 function buildRequestConfig(params?: Record<string, any>): AxiosRequestConfig {
+  const apiKey = process.env.COINGECKO_API_KEY;
   const config: AxiosRequestConfig = { params };
-  if (COINGECKO_API_KEY) {
-    config.headers = COINGECKO_API_KEY.startsWith('CG-')
-      ? { 'x-cg-pro-api-key': COINGECKO_API_KEY }
-      : { 'x-cg-demo-api-key': COINGECKO_API_KEY };
+  if (apiKey) {
+    config.headers = apiKey.startsWith('CG-')
+      ? { 'x-cg-demo-api-key': apiKey }
+      : { 'x-cg-pro-api-key': apiKey };
   }
   return config;
+}
+
+function getApiBase(): string {
+  const apiKey = process.env.COINGECKO_API_KEY;
+  return apiKey?.startsWith('CG-')
+    ? 'https://api.coingecko.com/api/v3'
+    : 'https://pro-api.coingecko.com/api/v3';
 }
 
 export interface CoinGeckoMarketData {
@@ -69,7 +72,7 @@ class CoinGeckoService {
       }
 
       const response = await axios.get<CoinGeckoMarketData[]>(
-        `${COINGECKO_API_BASE}/coins/markets`,
+        `${getApiBase()}/coins/markets`,
         buildRequestConfig(params)
       );
 
@@ -94,7 +97,7 @@ class CoinGeckoService {
 
     try {
       const response = await axios.get<CoinGeckoPriceHistory>(
-        `${COINGECKO_API_BASE}/coins/${coinId}/market_chart`,
+        `${getApiBase()}/coins/${coinId}/market_chart`,
         buildRequestConfig({
           vs_currency: 'usd',
           days,
@@ -109,7 +112,7 @@ class CoinGeckoService {
         status: error.response?.status,
         statusText: error.response?.statusText,
         data: error.response?.data,
-        url: `${COINGECKO_API_BASE}/coins/${coinId}/market_chart`,
+        url: `${getApiBase()}/coins/${coinId}/market_chart`,
         params: { vs_currency: 'usd', days },
       });
 
@@ -132,7 +135,7 @@ class CoinGeckoService {
 
     try {
       const response = await axios.get(
-        `${COINGECKO_API_BASE}/coins/${coinId}`,
+        `${getApiBase()}/coins/${coinId}`,
         buildRequestConfig({
           localization: false,
           tickers: false,

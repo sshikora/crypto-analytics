@@ -11,6 +11,11 @@ export const apiKeyAuth = (req: Request, res: Response, next: NextFunction) => {
     return next();
   }
 
+  // Allow GraphiQL UI in development (GET requests only serve the HTML interface)
+  if (process.env.NODE_ENV !== 'production' && req.path === '/graphql' && req.method === 'GET') {
+    return next();
+  }
+
   const apiKey = req.headers['x-api-key'] as string;
   const validApiKey = process.env.API_KEY;
 
