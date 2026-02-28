@@ -47,6 +47,29 @@ export const typeDefs = `
     data: [PricePoint!]!
   }
 
+  type VolatilityPoint {
+    timestamp: String!
+    annualizedVolatility: Float!
+  }
+
+  type VolatilityForecast {
+    horizon: Int!
+    annualizedVolatility: Float!
+  }
+
+  type VolatilityModel {
+    symbol: String!
+    modelType: String!
+    omega: Float!
+    alpha: Float!
+    beta: Float!
+    persistence: Float!
+    longRunVolatility: Float!
+    currentVolatility: Float!
+    conditionalVolatility: [VolatilityPoint!]!
+    forecast: [VolatilityForecast!]!
+  }
+
   enum TimeRange {
     DAY
     WEEK
@@ -157,6 +180,7 @@ export const typeDefs = `
     priceHistory(symbol: String!, timeRange: TimeRange!): PriceHistory
     marketStats(symbol: String!): MarketStats
     topCryptocurrencies(limit: Int): [Cryptocurrency!]!
+    volatilityModel(symbol: String!, timeRange: TimeRange!): VolatilityModel
     userPreferences(userId: String!): UserPreferences
 
     # Notification Queries

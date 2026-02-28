@@ -53,3 +53,26 @@ export enum TimeRange {
   YEAR = 'YEAR',
   ALL = 'ALL',
 }
+
+export interface VolatilityPoint {
+  timestamp: string;
+  annualizedVolatility: number;
+}
+
+export interface VolatilityForecast {
+  horizon: number;
+  annualizedVolatility: number;
+}
+
+export interface VolatilityModel {
+  symbol: string;
+  modelType: string;
+  omega: number;
+  alpha: number;
+  beta: number;
+  persistence: number;
+  longRunVolatility: number;
+  currentVolatility: number;
+  conditionalVolatility: VolatilityPoint[];
+  forecast: VolatilityForecast[];
+}

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@apollo/client';
 import { PriceChart } from '../components/PriceChart';
 import { MovingAverageChart } from '../components/MovingAverageChart';
+import { VolatilityChart } from '../components/VolatilityChart';
 import { StatCard } from '../components/StatCard';
 import { TimeRangeSelector } from '../components/TimeRangeSelector';
 import { LoadingSpinner } from '../components/LoadingSpinner';
@@ -215,6 +216,11 @@ export const CryptoDetail: React.FC = () => {
         ) : (
           <p className="text-gray-500 text-center py-8">No data available for moving averages</p>
         )}
+      </div>
+
+      {/* Volatility Model */}
+      <div className="card">
+        <VolatilityChart symbol={crypto.symbol} />
       </div>
 
       {/* Crossover Alerts - only show when authenticated */}

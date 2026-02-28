@@ -1,4 +1,5 @@
 import { coinGeckoService } from '../services/coinGeckoService';
+import { fitGarch } from '../services/garchService';
 
 const TIME_RANGE_TO_DAYS: Record<string, number> = {
   DAY: 1,
@@ -132,6 +133,23 @@ export const resolvers = {
         console.error('Error fetching market stats:', error);
         throw error;
       }
+    },
+
+    volatilityModel: async (_: any, { symbol, timeRange }: { symbol: string; timeRange: string }) => {
+      const marketData = await coinGeckoService.getMarketData();
+      const coin = marketData.find(c => c.symbol.toUpperCase() === symbol.toUpperCase());
+
+      if (!coin) {
+        throw new Error('Cryptocurrency not found');
+      }
+
+      const days = TIME_RANGE_TO_DAYS[timeRange];
+      const history = await coinGeckoService.getPriceHistory(coin.id, days);
+
+      const prices = history.prices.map((p: [number, number]) => p[1]);
+      const timestamps = history.prices.map((p: [number, number]) => p[0]);
+
+      return fitGarch(prices, timestamps, symbol.toUpperCase());
     },
 
     topCryptocurrencies: async (_: any, { limit = 10 }: { limit?: number }) => {

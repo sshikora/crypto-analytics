@@ -96,6 +96,29 @@ export const GET_MARKET_STATS = gql`
   }
 `;
 
+export const GET_VOLATILITY_MODEL = gql`
+  query GetVolatilityModel($symbol: String!, $timeRange: TimeRange!) {
+    volatilityModel(symbol: $symbol, timeRange: $timeRange) {
+      symbol
+      modelType
+      omega
+      alpha
+      beta
+      persistence
+      longRunVolatility
+      currentVolatility
+      conditionalVolatility {
+        timestamp
+        annualizedVolatility
+      }
+      forecast {
+        horizon
+        annualizedVolatility
+      }
+    }
+  }
+`;
+
 export const REFRESH_CRYPTO_DATA = gql`
   mutation RefreshCryptoData($symbol: String!) {
     refreshCryptoData(symbol: $symbol) {
