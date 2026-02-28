@@ -16,9 +16,9 @@ function buildRequestConfig(params?: Record<string, any>): AxiosRequestConfig {
 
 function getApiBase(): string {
   const apiKey = process.env.COINGECKO_API_KEY;
-  return apiKey?.startsWith('CG-')
-    ? 'https://api.coingecko.com/api/v3'
-    : 'https://pro-api.coingecko.com/api/v3';
+  return apiKey && !apiKey.startsWith('CG-')
+    ? 'https://pro-api.coingecko.com/api/v3'
+    : 'https://api.coingecko.com/api/v3';
 }
 
 export interface CoinGeckoMarketData {
