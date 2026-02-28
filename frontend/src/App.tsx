@@ -8,6 +8,7 @@ import { Dashboard } from './pages/Dashboard';
 import { CryptoDetail } from './pages/CryptoDetail';
 import { Markets } from './pages/Markets';
 import { About } from './pages/About';
+import { Help } from './pages/Help';
 import { Login } from './pages/Login';
 import { SignUp } from './pages/SignUp';
 import { ForgotPassword } from './pages/ForgotPassword';
@@ -51,6 +52,7 @@ function App() {
                       <Route path="/" element={<Dashboard />} />
                       <Route path="/markets" element={<Markets />} />
                       <Route path="/about" element={<About />} />
+                      <Route path="/help" element={<Help />} />
                       <Route path="/crypto/:symbol" element={<CryptoDetail />} />
                       <Route path="/login" element={<Login />} />
                       <Route path="/signup" element={<SignUp />} />
