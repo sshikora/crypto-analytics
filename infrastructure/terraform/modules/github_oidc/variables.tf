@@ -39,3 +39,13 @@ variable "kubernetes_namespace" {
   description = "Namespace the deploy role can modify"
   type        = string
 }
+
+variable "frontend_bucket_arn" {
+  description = "S3 bucket the deploy role uploads the frontend to"
+  type        = string
+}
+
+variable "frontend_distribution_arn" {
+  description = "CloudFront distribution the deploy role can invalidate"
+  type        = string
+}

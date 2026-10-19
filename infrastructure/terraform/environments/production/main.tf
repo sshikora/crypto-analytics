@@ -117,6 +117,20 @@ module "github_oidc" {
   ecr_repository_names = ["crypto-analytics-backend", "crypto-analytics-frontend"]
   cluster_name         = module.eks.cluster_name
   kubernetes_namespace = "crypto-analytics"
+
+  frontend_bucket_arn       = module.frontend_cdn.bucket_arn
+  frontend_distribution_arn = module.frontend_cdn.distribution_arn
+}
+
+# Static frontend on S3 + CloudFront
+module "frontend_cdn" {
+  source = "../../modules/frontend_cdn"
+
+  project_name    = var.project_name
+  environment     = var.environment
+  aliases         = [var.domain_name, "www.${var.domain_name}"]
+  certificate_arn = module.route53.certificate_arn
+  route53_zone_id = module.route53.zone_id
 }
 
 # Configure Kubernetes provider

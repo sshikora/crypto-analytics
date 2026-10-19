@@ -12,6 +12,8 @@ env:
   ECR_FRONTEND_REPO: crypto-analytics-frontend
   EKS_CLUSTER_NAME: crypto-analytics-production
   NAMESPACE: crypto-analytics
+  FRONTEND_BUCKET: crypto-analytics-production-frontend
+  CLOUDFRONT_DISTRIBUTION_ID: E31SSJXY4NAH12
 
 jobs:
   test:
@@ -117,6 +119,29 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_FRONTEND_REPO:latest
           echo "image=$ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Publish frontend to S3 and CloudFront
+        working-directory: ./frontend
+        run: |
+          npm ci
+          npm run build
+          # Hashed assets never change; older ones are kept for browsers still holding a previous index.html
+          aws s3 sync dist/assets "s3://$FRONTEND_BUCKET/assets" \
+            --cache-control "public, max-age=31536000, immutable"
+          aws s3 sync dist "s3://$FRONTEND_BUCKET" \
+            --exclude "assets/*" \
+            --cache-control "no-cache" \
+            --delete
+          aws cloudfront create-invalidation \
+            --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" \
+            --paths "/*"
 
       - name: Update kubeconfig
         run: |

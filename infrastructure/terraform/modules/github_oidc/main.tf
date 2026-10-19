@@ -64,6 +64,21 @@ data "aws_iam_policy_document" "deploy" {
     actions   = ["eks:DescribeCluster"]
     resources = [local.cluster_arn]
   }
+
+  statement {
+    actions   = ["s3:ListBucket"]
+    resources = [var.frontend_bucket_arn]
+  }
+
+  statement {
+    actions   = ["s3:DeleteObject", "s3:GetObject", "s3:PutObject"]
+    resources = ["${var.frontend_bucket_arn}/*"]
+  }
+
+  statement {
+    actions   = ["cloudfront:CreateInvalidation", "cloudfront:GetInvalidation"]
+    resources = [var.frontend_distribution_arn]
+  }
 }
 
 resource "aws_iam_role_policy" "deploy" {
