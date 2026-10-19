@@ -26,6 +26,13 @@ resource "aws_cloudfront_origin_access_control" "frontend" {
   signing_protocol                  = "sigv4"
 }
 
+resource "aws_cloudfront_function" "www_redirect" {
+  name    = "${var.project_name}-${var.environment}-www-redirect"
+  runtime = "cloudfront-js-2.0"
+  publish = true
+  code    = file("${path.module}/www_redirect.js")
+}
+
 data "aws_cloudfront_cache_policy" "caching_optimized" {
   name = "Managed-CachingOptimized"
 }
@@ -56,6 +63,11 @@ resource "aws_cloudfront_distribution" "frontend" {
     compress                   = true
     cache_policy_id            = data.aws_cloudfront_cache_policy.caching_optimized.id
     response_headers_policy_id = data.aws_cloudfront_response_headers_policy.security_headers.id
+
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.www_redirect.arn
+    }
   }
 
   # Client-side routes such as /crypto/bitcoin have no S3 object; serve the SPA instead.

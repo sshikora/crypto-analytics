@@ -131,6 +131,7 @@ module "frontend_cdn" {
   aliases         = [var.domain_name, "www.${var.domain_name}"]
   certificate_arn = module.route53.certificate_arn
   route53_zone_id = module.route53.zone_id
+  manage_dns      = true
 }
 
 # Configure Kubernetes provider
