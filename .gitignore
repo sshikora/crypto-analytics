@@ -57,3 +57,11 @@ terraform.tfstate.backup
 *.tfvars
 !*.tfvars.example
 !terraform.tfvars.cost-optimized
+
+# TypeScript build output
+*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
+
+# Private planning docs
+docs/feature-roadmap.md
