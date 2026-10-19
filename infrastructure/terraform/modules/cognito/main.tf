@@ -313,7 +313,7 @@ resource "aws_dynamodb_table" "email_rate_limits" {
 # IAM policy for accessing DynamoDB from backend
 resource "aws_iam_policy" "dynamodb_access" {
   name        = "${var.project_name}-${var.environment}-dynamodb-access"
-  description = "Policy for accessing DynamoDB tables"
+  description = "Policy for accessing user preferences DynamoDB table"
 
   policy = jsonencode({
     Version = "2012-10-17"

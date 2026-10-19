@@ -79,6 +79,32 @@ data "aws_iam_policy_document" "deploy" {
     actions   = ["cloudfront:CreateInvalidation", "cloudfront:GetInvalidation"]
     resources = [var.frontend_distribution_arn]
   }
+
+  statement {
+    actions   = ["ecs:DescribeTaskDefinition", "ecs:RegisterTaskDefinition"]
+    resources = ["*"]
+  }
+
+  statement {
+    actions   = ["ecs:DescribeServices", "ecs:UpdateService"]
+    resources = [var.ecs_service_arn]
+  }
+
+  statement {
+    actions   = ["iam:PassRole"]
+    resources = var.ecs_pass_role_arns
+
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PassedToService"
+      values   = ["ecs-tasks.amazonaws.com"]
+    }
+  }
+
+  statement {
+    actions   = ["ssm:PutParameter"]
+    resources = var.secret_parameter_arns
+  }
 }
 
 resource "aws_iam_role_policy" "deploy" {

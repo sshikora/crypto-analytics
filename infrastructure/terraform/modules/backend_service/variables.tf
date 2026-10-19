@@ -1,0 +1,78 @@
+variable "project_name" {
+  description = "Name of the project"
+  type        = string
+}
+
+variable "environment" {
+  description = "Environment name"
+  type        = string
+}
+
+variable "vpc_id" {
+  description = "VPC ID"
+  type        = string
+}
+
+variable "public_subnet_ids" {
+  description = "Public subnets for the ALB and tasks"
+  type        = list(string)
+}
+
+variable "certificate_arn" {
+  description = "ACM certificate ARN covering the API domain"
+  type        = string
+}
+
+variable "route53_zone_id" {
+  description = "Route53 hosted zone ID for the API domain"
+  type        = string
+}
+
+variable "api_domain_name" {
+  description = "Domain name served by the backend ALB"
+  type        = string
+}
+
+variable "manage_dns" {
+  description = "Point the API domain at the ALB"
+  type        = bool
+  default     = false
+}
+
+variable "initial_image" {
+  description = "Image for the Terraform-managed task definition; deploys replace it"
+  type        = string
+}
+
+variable "container_port" {
+  description = "Port the backend listens on"
+  type        = number
+  default     = 4000
+}
+
+variable "cpu" {
+  description = "Task CPU units"
+  type        = number
+  default     = 512
+}
+
+variable "memory" {
+  description = "Task memory in MiB"
+  type        = number
+  default     = 1024
+}
+
+variable "environment_variables" {
+  description = "Plain environment variables for the container"
+  type        = map(string)
+}
+
+variable "secret_names" {
+  description = "Environment variables injected from SSM SecureString parameters"
+  type        = list(string)
+}
+
+variable "task_role_policy_arns" {
+  description = "IAM policies granting the backend access to AWS services"
+  type        = list(string)
+}

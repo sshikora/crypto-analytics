@@ -14,6 +14,10 @@ env:
   NAMESPACE: crypto-analytics
   FRONTEND_BUCKET: crypto-analytics-production-frontend
   CLOUDFRONT_DISTRIBUTION_ID: E31SSJXY4NAH12
+  ECS_CLUSTER: crypto-analytics-production
+  ECS_SERVICE: backend
+  ECS_TASK_FAMILY: crypto-analytics-production-backend
+  SSM_SECRET_PREFIX: /crypto-analytics/production
 
 jobs:
   test:
@@ -142,6 +146,28 @@ jobs:
           aws cloudfront create-invalidation \
             --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" \
             --paths "/*"
+
+      - name: Update backend secrets in SSM
+        env:
+          API_KEY: ${{ secrets.VITE_API_KEY }}
+          COINGECKO_API_KEY: ${{ secrets.COINGECKO_API_KEY }}
+        run: |
+          aws ssm put-parameter --name "$SSM_SECRET_PREFIX/API_KEY" --type SecureString --value "$API_KEY" --overwrite > /dev/null
+          aws ssm put-parameter --name "$SSM_SECRET_PREFIX/COINGECKO_API_KEY" --type SecureString --value "$COINGECKO_API_KEY" --overwrite > /dev/null
+
+      - name: Deploy backend to ECS
+        env:
+          IMAGE: ${{ steps.build-backend.outputs.image }}
+        run: |
+          aws ecs describe-task-definition --task-definition "$ECS_TASK_FAMILY" --query taskDefinition > task-def.json
+          jq --arg image "$IMAGE" '.containerDefinitions[0].image = $image
+            | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
+            task-def.json > new-task-def.json
+          TASK_DEF_ARN=$(aws ecs register-task-definition --cli-input-json file://new-task-def.json \
+            --query taskDefinition.taskDefinitionArn --output text)
+          aws ecs update-service --cluster "$ECS_CLUSTER" --service "$ECS_SERVICE" \
+            --task-definition "$TASK_DEF_ARN" --force-new-deployment > /dev/null
+          aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE"
 
       - name: Update kubeconfig
         run: |

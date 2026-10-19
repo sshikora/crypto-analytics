@@ -120,6 +120,47 @@ module "github_oidc" {
 
   frontend_bucket_arn       = module.frontend_cdn.bucket_arn
   frontend_distribution_arn = module.frontend_cdn.distribution_arn
+
+  ecs_service_arn       = module.backend_service.service_arn
+  ecs_pass_role_arns    = module.backend_service.pass_role_arns
+  secret_parameter_arns = values(module.backend_service.secret_parameter_arns)
+}
+
+# Backend API on ECS Fargate
+module "backend_service" {
+  source = "../../modules/backend_service"
+
+  project_name      = var.project_name
+  environment       = var.environment
+  vpc_id            = module.vpc.vpc_id
+  public_subnet_ids = module.vpc.public_subnet_ids
+  certificate_arn   = module.route53.certificate_arn
+  route53_zone_id   = module.route53.zone_id
+  api_domain_name   = "api.${var.domain_name}"
+  initial_image     = "010151257830.dkr.ecr.us-east-1.amazonaws.com/crypto-analytics-backend:latest"
+
+  environment_variables = {
+    PORT                              = "4000"
+    NODE_ENV                          = "production"
+    AWS_REGION                        = var.aws_region
+    DYNAMODB_PREFERENCES_TABLE        = module.cognito.dynamodb_table_name
+    DYNAMODB_NOTIFICATION_RULES_TABLE = module.cognito.notification_rules_table_name
+    DYNAMODB_NOTIFICATIONS_TABLE      = module.cognito.notifications_table_name
+    DYNAMODB_EMAIL_RATE_LIMIT_TABLE   = module.cognito.email_rate_limits_table_name
+    ALLOWED_ORIGINS                   = "https://${var.domain_name}"
+    COGNITO_USER_POOL_ID              = module.cognito.user_pool_id
+    DOMAIN_NAME                       = var.domain_name
+    EMAIL_FROM_NAME                   = "Crypto Quant Lab"
+    # The EKS backend runs the checker until the API cutover; only one copy may run at a time.
+    ENABLE_CROSSOVER_CHECKER = "false"
+  }
+
+  secret_names = ["API_KEY", "COINGECKO_API_KEY"]
+
+  task_role_policy_arns = [
+    module.cognito.dynamodb_access_policy_arn,
+    module.email.ses_send_email_policy_arn,
+  ]
 }
 
 # Static frontend on S3 + CloudFront

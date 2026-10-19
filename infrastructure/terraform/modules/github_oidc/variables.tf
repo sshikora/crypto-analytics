@@ -49,3 +49,18 @@ variable "frontend_distribution_arn" {
   description = "CloudFront distribution the deploy role can invalidate"
   type        = string
 }
+
+variable "ecs_service_arn" {
+  description = "ECS service the deploy role can update"
+  type        = string
+}
+
+variable "ecs_pass_role_arns" {
+  description = "Task and execution roles the deploy role can pass to ECS"
+  type        = list(string)
+}
+
+variable "secret_parameter_arns" {
+  description = "SSM parameters the deploy role writes backend secrets to"
+  type        = list(string)
+}
