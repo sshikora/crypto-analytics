@@ -21,14 +21,14 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  TF_VERSION: 1.6.0
+  TOFU_VERSION: 1.10.7
 
 jobs:
   terraform:
     name: Terraform ${{ github.event.inputs.action }}
     runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
 
-    # Use OIDC for AWS credentials (more secure than access keys)
     permissions:
       id-token: write
       contents: read
@@ -40,30 +40,29 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: arn:aws:iam::010151257830:role/crypto-analytics-production-github-terraform
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+      - name: Setup OpenTofu
+        uses: opentofu/setup-opentofu@v1
         with:
-          terraform_version: ${{ env.TF_VERSION }}
-          terraform_wrapper: false
+          tofu_version: ${{ env.TOFU_VERSION }}
+          tofu_wrapper: false
 
       - name: Terraform Init
         working-directory: infrastructure/terraform/environments/${{ github.event.inputs.environment }}
-        run: terraform init
+        run: tofu init
 
       - name: Terraform Validate
         working-directory: infrastructure/terraform/environments/${{ github.event.inputs.environment }}
-        run: terraform validate
+        run: tofu validate
 
       - name: Terraform Plan
         working-directory: infrastructure/terraform/environments/${{ github.event.inputs.environment }}
         env:
           TF_VAR_google_dkim_value: ${{ secrets.GOOGLE_DKIM_VALUE }}
         run: |
-          terraform plan \
+          tofu plan \
             -out=tfplan \
             -var-file=terraform.tfvars.cost-optimized
         continue-on-error: false
@@ -71,17 +70,12 @@ jobs:
       - name: Terraform Apply
         if: github.event.inputs.action == 'apply'
         working-directory: infrastructure/terraform/environments/${{ github.event.inputs.environment }}
-        env:
-          TF_VAR_google_dkim_value: ${{ secrets.GOOGLE_DKIM_VALUE }}
-        run: |
-          terraform apply \
-            -auto-approve \
-            -var-file=terraform.tfvars.cost-optimized
+        run: tofu apply tfplan
 
       - name: Terraform Output
         if: github.event.inputs.action == 'apply'
         working-directory: infrastructure/terraform/environments/${{ github.event.inputs.environment }}
-        run: terraform output
+        run: tofu output
 
       - name: Summary
         run: |

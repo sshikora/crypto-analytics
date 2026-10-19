@@ -1,0 +1,41 @@
+variable "project_name" {
+  description = "Name of the project"
+  type        = string
+}
+
+variable "environment" {
+  description = "Environment name"
+  type        = string
+}
+
+variable "github_repository" {
+  description = "GitHub repository in owner/name form"
+  type        = string
+}
+
+variable "deploy_branch" {
+  description = "Branch allowed to assume the deploy role"
+  type        = string
+  default     = "master"
+}
+
+variable "terraform_environment" {
+  description = "GitHub environment allowed to assume the terraform role"
+  type        = string
+  default     = "production"
+}
+
+variable "ecr_repository_names" {
+  description = "ECR repositories the deploy role can push to"
+  type        = list(string)
+}
+
+variable "cluster_name" {
+  description = "EKS cluster name"
+  type        = string
+}
+
+variable "kubernetes_namespace" {
+  description = "Namespace the deploy role can modify"
+  type        = string
+}

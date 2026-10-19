@@ -107,6 +107,18 @@ module "email" {
   google_dkim_value   = var.google_dkim_value
 }
 
+# GitHub Actions OIDC roles for deploys and infrastructure changes
+module "github_oidc" {
+  source = "../../modules/github_oidc"
+
+  project_name         = var.project_name
+  environment          = var.environment
+  github_repository    = "sshikora/crypto-analytics"
+  ecr_repository_names = ["crypto-analytics-backend", "crypto-analytics-frontend"]
+  cluster_name         = module.eks.cluster_name
+  kubernetes_namespace = "crypto-analytics"
+}
+
 # Configure Kubernetes provider
 provider "kubernetes" {
   host                   = module.eks.cluster_endpoint
