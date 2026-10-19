@@ -1,4 +1,4 @@
-name: Build and Deploy to AWS EKS
+name: Build and Deploy to AWS
 
 on:
   push:
@@ -9,9 +9,6 @@ on:
 env:
   AWS_REGION: us-east-1
   ECR_BACKEND_REPO: crypto-analytics-backend
-  ECR_FRONTEND_REPO: crypto-analytics-frontend
-  EKS_CLUSTER_NAME: crypto-analytics-production
-  NAMESPACE: crypto-analytics
   FRONTEND_BUCKET: crypto-analytics-production-frontend
   CLOUDFRONT_DISTRIBUTION_ID: E31SSJXY4NAH12
   ECS_CLUSTER: crypto-analytics-production
@@ -104,26 +101,6 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_BACKEND_REPO:latest
           echo "image=$ECR_REGISTRY/$ECR_BACKEND_REPO:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-      - name: Build, tag, and push frontend image
-        id: build-frontend
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: ${{ github.sha }}
-        run: |
-          cd frontend
-          # Create production environment file with secrets from GitHub Secrets
-          echo "VITE_GRAPHQL_URL=https://api.cryptoquantlab.com/graphql" > .env.production
-          echo "VITE_API_KEY=${{ secrets.VITE_API_KEY }}" >> .env.production
-          echo "VITE_COGNITO_USER_POOL_ID=${{ secrets.VITE_COGNITO_USER_POOL_ID }}" >> .env.production
-          echo "VITE_COGNITO_CLIENT_ID=${{ secrets.VITE_COGNITO_CLIENT_ID }}" >> .env.production
-          echo "VITE_AWS_REGION=us-east-1" >> .env.production
-          echo "VITE_POSTHOG_API_KEY=${{ secrets.VITE_POSTHOG_API_KEY }}" >> .env.production
-          echo "VITE_POSTHOG_HOST=https://us.i.posthog.com" >> .env.production
-          docker build --platform linux/amd64 -t $ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_FRONTEND_REPO:latest .
-          docker push $ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_FRONTEND_REPO:latest
-          echo "image=$ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG" >> $GITHUB_OUTPUT
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -133,7 +110,21 @@ jobs:
 
       - name: Publish frontend to S3 and CloudFront
         working-directory: ./frontend
+        env:
+          VITE_API_KEY: ${{ secrets.VITE_API_KEY }}
+          VITE_COGNITO_USER_POOL_ID: ${{ secrets.VITE_COGNITO_USER_POOL_ID }}
+          VITE_COGNITO_CLIENT_ID: ${{ secrets.VITE_COGNITO_CLIENT_ID }}
+          VITE_POSTHOG_API_KEY: ${{ secrets.VITE_POSTHOG_API_KEY }}
         run: |
+          cat > .env.production <<EOF
+          VITE_GRAPHQL_URL=https://api.cryptoquantlab.com/graphql
+          VITE_API_KEY=$VITE_API_KEY
+          VITE_COGNITO_USER_POOL_ID=$VITE_COGNITO_USER_POOL_ID
+          VITE_COGNITO_CLIENT_ID=$VITE_COGNITO_CLIENT_ID
+          VITE_AWS_REGION=us-east-1
+          VITE_POSTHOG_API_KEY=$VITE_POSTHOG_API_KEY
+          VITE_POSTHOG_HOST=https://us.i.posthog.com
+          EOF
           npm ci
           npm run build
           # Hashed assets never change; older ones are kept for browsers still holding a previous index.html
@@ -168,51 +159,3 @@ jobs:
           aws ecs update-service --cluster "$ECS_CLUSTER" --service "$ECS_SERVICE" \
             --task-definition "$TASK_DEF_ARN" --force-new-deployment > /dev/null
           aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE"
-
-      - name: Update kubeconfig
-        run: |
-          aws eks update-kubeconfig --name $EKS_CLUSTER_NAME --region $AWS_REGION
-
-      - name: Create/Update Backend Secrets
-        run: |
-          # Delete existing secret if it exists (ignore errors)
-          kubectl delete secret backend-secrets -n $NAMESPACE --ignore-not-found=true
-
-          # Create new secret with API key from GitHub Secrets
-          kubectl create secret generic backend-secrets \
-            --from-literal=API_KEY=${{ secrets.VITE_API_KEY }} \
-            --from-literal=COINGECKO_API_KEY=${{ secrets.COINGECKO_API_KEY }} \
-            -n $NAMESPACE
-
-      - name: Deploy to EKS
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: ${{ github.sha }}
-        run: |
-          # Update backend deployment with new image
-          kubectl set image deployment/backend \
-            backend=$ECR_REGISTRY/$ECR_BACKEND_REPO:$IMAGE_TAG \
-            -n $NAMESPACE
-
-          # Update frontend deployment with new image
-          kubectl set image deployment/frontend \
-            frontend=$ECR_REGISTRY/$ECR_FRONTEND_REPO:$IMAGE_TAG \
-            -n $NAMESPACE
-
-          # Wait for rollouts to complete
-          kubectl rollout status deployment/backend -n $NAMESPACE --timeout=300s
-          kubectl rollout status deployment/frontend -n $NAMESPACE --timeout=300s
-
-      - name: Verify deployment
-        run: |
-          echo "Checking pod status..."
-          kubectl get pods -n $NAMESPACE
-
-          echo ""
-          echo "Checking deployment status..."
-          kubectl get deployments -n $NAMESPACE
-
-          echo ""
-          echo "Deployment completed successfully!"
-          echo "Frontend: https://cryptoquantlab.com"
-          echo "API: https://api.cryptoquantlab.com/graphql"

@@ -119,9 +119,3 @@ resource "aws_iam_policy" "ses_send_email" {
     ]
   })
 }
-
-# Attach SES policy to the EKS node role (so backend pods can send email)
-resource "aws_iam_role_policy_attachment" "eks_node_ses" {
-  role       = var.eks_node_role_name
-  policy_arn = aws_iam_policy.ses_send_email.arn
-}

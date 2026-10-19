@@ -8,9 +8,8 @@ data "aws_iam_openid_connect_provider" "github" {
 }
 
 locals {
-  account_id  = data.aws_caller_identity.current.account_id
-  region      = data.aws_region.current.name
-  cluster_arn = "arn:aws:eks:${local.region}:${local.account_id}:cluster/${var.cluster_name}"
+  account_id = data.aws_caller_identity.current.account_id
+  region     = data.aws_region.current.name
 }
 
 data "aws_iam_policy_document" "deploy_trust" {
@@ -58,11 +57,6 @@ data "aws_iam_policy_document" "deploy" {
       "ecr:UploadLayerPart",
     ]
     resources = [for name in var.ecr_repository_names : "arn:aws:ecr:${local.region}:${local.account_id}:repository/${name}"]
-  }
-
-  statement {
-    actions   = ["eks:DescribeCluster"]
-    resources = [local.cluster_arn]
   }
 
   statement {
@@ -144,40 +138,4 @@ resource "aws_iam_role" "terraform" {
 resource "aws_iam_role_policy_attachment" "terraform_admin" {
   role       = aws_iam_role.terraform.name
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
-}
-
-# Access entries require the cluster's authentication mode to be API_AND_CONFIG_MAP.
-resource "aws_eks_access_entry" "deploy" {
-  cluster_name  = var.cluster_name
-  principal_arn = aws_iam_role.deploy.arn
-}
-
-resource "aws_eks_access_policy_association" "deploy" {
-  cluster_name  = var.cluster_name
-  principal_arn = aws_iam_role.deploy.arn
-  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSEditPolicy"
-
-  access_scope {
-    type       = "namespace"
-    namespaces = [var.kubernetes_namespace]
-  }
-
-  depends_on = [aws_eks_access_entry.deploy]
-}
-
-resource "aws_eks_access_entry" "terraform" {
-  cluster_name  = var.cluster_name
-  principal_arn = aws_iam_role.terraform.arn
-}
-
-resource "aws_eks_access_policy_association" "terraform" {
-  cluster_name  = var.cluster_name
-  principal_arn = aws_iam_role.terraform.arn
-  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
-
-  access_scope {
-    type = "cluster"
-  }
-
-  depends_on = [aws_eks_access_entry.terraform]
 }

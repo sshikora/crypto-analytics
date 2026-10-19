@@ -13,11 +13,6 @@ variable "route53_zone_id" {
   type        = string
 }
 
-variable "eks_node_role_name" {
-  description = "Name of the EKS node IAM role (for SES permissions)"
-  type        = string
-}
-
 variable "google_dkim_value" {
   description = "Google Workspace DKIM TXT record value (get from Google admin console)"
   type        = string
