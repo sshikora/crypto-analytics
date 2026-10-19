@@ -137,6 +137,7 @@ module "backend_service" {
   certificate_arn   = module.route53.certificate_arn
   route53_zone_id   = module.route53.zone_id
   api_domain_name   = "api.${var.domain_name}"
+  manage_dns        = true
   initial_image     = "010151257830.dkr.ecr.us-east-1.amazonaws.com/crypto-analytics-backend:latest"
 
   environment_variables = {
@@ -151,8 +152,8 @@ module "backend_service" {
     COGNITO_USER_POOL_ID              = module.cognito.user_pool_id
     DOMAIN_NAME                       = var.domain_name
     EMAIL_FROM_NAME                   = "Crypto Quant Lab"
-    # The EKS backend runs the checker until the API cutover; only one copy may run at a time.
-    ENABLE_CROSSOVER_CHECKER = "false"
+    # Only one copy of the checker may run at a time; the service runs a single task.
+    ENABLE_CROSSOVER_CHECKER = "true"
   }
 
   secret_names = ["API_KEY", "COINGECKO_API_KEY"]
