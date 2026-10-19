@@ -176,8 +176,9 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: backend
+  # The in-process crossover checker cron must run in exactly one replica.
   minReplicas: 1
-  maxReplicas: 10
+  maxReplicas: 1
   metrics:
   - type: Resource
     resource:
