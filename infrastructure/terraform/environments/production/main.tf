@@ -136,3 +136,21 @@ module "frontend_cdn" {
   route53_zone_id = module.route53.zone_id
   manage_dns      = true
 }
+
+# Alarms for the API, backend and public endpoints
+module "monitoring" {
+  source = "../../modules/monitoring"
+
+  project_name            = var.project_name
+  environment             = var.environment
+  alb_arn_suffix          = module.backend_service.alb_arn_suffix
+  target_group_arn_suffix = module.backend_service.target_group_arn_suffix
+  ecs_cluster_name        = module.backend_service.cluster_name
+  ecs_service_name        = module.backend_service.service_name
+  log_group_name          = module.backend_service.log_group_name
+
+  health_check_urls = {
+    site = { fqdn = var.domain_name, path = "/" }
+    api  = { fqdn = "api.${var.domain_name}", path = "/health" }
+  }
+}

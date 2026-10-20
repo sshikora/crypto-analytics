@@ -32,3 +32,18 @@ output "alb_dns_name" {
   description = "ALB DNS name for testing before DNS cutover"
   value       = aws_lb.backend.dns_name
 }
+
+output "alb_arn_suffix" {
+  description = "ALB ARN suffix used as the CloudWatch LoadBalancer dimension"
+  value       = aws_lb.backend.arn_suffix
+}
+
+output "target_group_arn_suffix" {
+  description = "Target group ARN suffix used as the CloudWatch TargetGroup dimension"
+  value       = aws_lb_target_group.backend.arn_suffix
+}
+
+output "log_group_name" {
+  description = "CloudWatch log group for the backend container"
+  value       = aws_cloudwatch_log_group.backend.name
+}

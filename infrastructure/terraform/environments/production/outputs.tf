@@ -57,3 +57,8 @@ output "ses_dkim_tokens" {
   description = "DKIM tokens - Add 3 CNAME records: <token>._domainkey.cryptoquantlab.com"
   value       = module.cognito.ses_dkim_tokens
 }
+
+output "alerts_topic_arn" {
+  description = "SNS topic for alarm notifications; subscribe email addresses outside OpenTofu"
+  value       = module.monitoring.alerts_topic_arn
+}
