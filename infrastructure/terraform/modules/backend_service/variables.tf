@@ -62,6 +62,12 @@ variable "memory" {
   default     = 1024
 }
 
+variable "ecr_images_to_keep" {
+  description = "Number of most recent backend images kept in ECR"
+  type        = number
+  default     = 20
+}
+
 variable "environment_variables" {
   description = "Plain environment variables for the container"
   type        = map(string)

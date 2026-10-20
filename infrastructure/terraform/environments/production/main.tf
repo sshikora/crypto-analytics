@@ -100,6 +100,8 @@ module "backend_service" {
   api_domain_name   = "api.${var.domain_name}"
   manage_dns        = true
   initial_image     = "010151257830.dkr.ecr.us-east-1.amazonaws.com/crypto-analytics-backend:latest"
+  cpu               = 256
+  memory            = 512
 
   environment_variables = {
     PORT                              = "4000"
