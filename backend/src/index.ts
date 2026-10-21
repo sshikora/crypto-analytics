@@ -12,7 +12,6 @@ import { typeDefs } from './schema/graphql';
 import { resolvers as cryptoResolvers } from './resolvers/cryptoResolvers';
 import { userPreferencesResolvers } from './resolvers/userPreferencesResolvers';
 import { notificationResolvers } from './resolvers/notificationResolvers';
-import { apiKeyAuth } from './middleware/apiKeyAuth';
 import { apiRateLimiter } from './middleware/rateLimiter';
 import { optionalJwtAuth, AuthenticatedRequest } from './middleware/jwtAuth';
 import { runCrossoverChecker } from './jobs/crossoverChecker';
@@ -34,7 +33,6 @@ app.use(express.json());
 
 // Security middleware - Applied to ALL routes
 app.use(apiRateLimiter); // Rate limiting by IP
-app.use(apiKeyAuth); // API key validation
 
 // Merge resolvers
 const resolvers = {
@@ -61,9 +59,7 @@ const yoga = createYoga({
   graphqlEndpoint: '/graphql',
   cors: false, // CORS is handled by Express
   maskedErrors: process.env.NODE_ENV === 'production', // Show full errors in development
-  graphiql: process.env.NODE_ENV !== 'production' && {
-    headers: JSON.stringify({ 'x-api-key': process.env.API_KEY }),
-  },
+  graphiql: process.env.NODE_ENV !== 'production',
   context: (initialContext) => {
     // When using Yoga with Express, the context includes req and res
     const req = (initialContext as any).req as AuthenticatedRequest;
