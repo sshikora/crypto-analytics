@@ -116,7 +116,8 @@ resource "aws_cloudfront_distribution" "api" {
   is_ipv6_enabled = true
   http_version    = "http2and3"
   aliases         = [var.api_domain_name]
-  price_class     = "PriceClass_100"
+  # Flat-rate pricing plans serve from every edge location; subscribing sets this.
+  price_class = "PriceClass_All"
   web_acl_id      = aws_wafv2_web_acl.api.arn
   comment         = "${local.prefix} API"
 

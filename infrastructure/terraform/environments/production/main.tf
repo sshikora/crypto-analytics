@@ -103,6 +103,10 @@ module "backend_service" {
   route53_zone_id   = module.route53.zone_id
   api_domain_name   = "api.${var.domain_name}"
   manage_dns        = true
+  api_alias_target = {
+    dns_name = module.api_cdn.distribution_domain_name
+    zone_id  = module.api_cdn.distribution_hosted_zone_id
+  }
   initial_image     = "010151257830.dkr.ecr.us-east-1.amazonaws.com/crypto-analytics-backend:latest"
   cpu               = 256
   memory            = 512
@@ -122,6 +126,8 @@ module "backend_service" {
     EMAIL_FROM_NAME                   = "Crypto Quant Lab"
     # Only one copy of the checker may run at a time; the service runs a single task.
     ENABLE_CROSSOVER_CHECKER = "true"
+    # CloudFront and the ALB both sit in front of the app.
+    TRUST_PROXY_HOPS = "2"
   }
 
   secret_names = ["API_KEY", "COINGECKO_API_KEY"]

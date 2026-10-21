@@ -34,9 +34,18 @@ variable "api_domain_name" {
 }
 
 variable "manage_dns" {
-  description = "Point the API domain at the ALB"
+  description = "Manage the API domain's DNS records"
   type        = bool
   default     = false
+}
+
+variable "api_alias_target" {
+  description = "Alias target for the API domain, such as a CloudFront distribution; null points it at the ALB"
+  type = object({
+    dns_name = string
+    zone_id  = string
+  })
+  default = null
 }
 
 variable "initial_image" {

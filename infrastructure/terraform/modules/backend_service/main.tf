@@ -283,9 +283,13 @@ resource "aws_ecs_service" "backend" {
   depends_on = [aws_lb_listener.https]
 }
 
-# The existing record points at the EKS ALB and is not in state, so it is overwritten on cutover.
+locals {
+  # The ALB is IPv4 only; CloudFront also serves IPv6.
+  api_record_types = var.api_alias_target == null ? ["A"] : ["A", "AAAA"]
+}
+
 resource "aws_route53_record" "api" {
-  for_each = var.manage_dns ? toset(["A"]) : toset([])
+  for_each = var.manage_dns ? toset(local.api_record_types) : toset([])
 
   zone_id         = var.route53_zone_id
   name            = var.api_domain_name
@@ -293,8 +297,8 @@ resource "aws_route53_record" "api" {
   allow_overwrite = true
 
   alias {
-    name                   = aws_lb.backend.dns_name
-    zone_id                = aws_lb.backend.zone_id
-    evaluate_target_health = true
+    name                   = var.api_alias_target == null ? aws_lb.backend.dns_name : var.api_alias_target.dns_name
+    zone_id                = var.api_alias_target == null ? aws_lb.backend.zone_id : var.api_alias_target.zone_id
+    evaluate_target_health = var.api_alias_target == null
   }
 }
