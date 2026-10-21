@@ -188,14 +188,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     try {
       const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
 
-      // Get API key and JWT token
-      const apiKey = import.meta.env.VITE_API_KEY;
+      // Get JWT token
       let jwtToken: string | undefined;
       try {
         const { fetchAuthSession } = await import('aws-amplify/auth');
         const session = await fetchAuthSession();
         jwtToken = session.tokens?.idToken?.toString();
-        console.log('[Auth] API Key present:', !!apiKey);
         console.log('[Auth] JWT Token present:', !!jwtToken);
       } catch (error) {
         console.error('[Auth] Failed to get auth session:', error);
@@ -204,10 +202,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
-
-      if (apiKey) {
-        headers['x-api-key'] = apiKey;
-      }
 
       if (jwtToken) {
         headers['authorization'] = `Bearer ${jwtToken}`;
@@ -270,14 +264,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     try {
       const graphqlUrl = import.meta.env.VITE_GRAPHQL_URL || 'http://localhost:4000/graphql';
 
-      // Get API key and JWT token
-      const apiKey = import.meta.env.VITE_API_KEY;
+      // Get JWT token
       let jwtToken: string | undefined;
       try {
         const { fetchAuthSession } = await import('aws-amplify/auth');
         const session = await fetchAuthSession();
         jwtToken = session.tokens?.idToken?.toString();
-        console.log('[Auth] API Key present:', !!apiKey);
         console.log('[Auth] JWT Token present:', !!jwtToken);
       } catch (error) {
         console.error('[Auth] Failed to get auth session:', error);
@@ -286,10 +278,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
-
-      if (apiKey) {
-        headers['x-api-key'] = apiKey;
-      }
 
       if (jwtToken) {
         headers['authorization'] = `Bearer ${jwtToken}`;

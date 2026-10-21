@@ -111,14 +111,12 @@ jobs:
       - name: Publish frontend to S3 and CloudFront
         working-directory: ./frontend
         env:
-          VITE_API_KEY: ${{ secrets.VITE_API_KEY }}
           VITE_COGNITO_USER_POOL_ID: ${{ secrets.VITE_COGNITO_USER_POOL_ID }}
           VITE_COGNITO_CLIENT_ID: ${{ secrets.VITE_COGNITO_CLIENT_ID }}
           VITE_POSTHOG_API_KEY: ${{ secrets.VITE_POSTHOG_API_KEY }}
         run: |
           cat > .env.production <<EOF
           VITE_GRAPHQL_URL=https://api.cryptoquantlab.com/graphql
-          VITE_API_KEY=$VITE_API_KEY
           VITE_COGNITO_USER_POOL_ID=$VITE_COGNITO_USER_POOL_ID
           VITE_COGNITO_CLIENT_ID=$VITE_COGNITO_CLIENT_ID
           VITE_AWS_REGION=us-east-1
