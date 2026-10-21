@@ -33,6 +33,11 @@ output "alb_dns_name" {
   value       = aws_lb.backend.dns_name
 }
 
+output "alb_zone_id" {
+  description = "Hosted zone ID of the ALB, for alias records"
+  value       = aws_lb.backend.zone_id
+}
+
 output "alb_arn_suffix" {
   description = "ALB ARN suffix used as the CloudWatch LoadBalancer dimension"
   value       = aws_lb.backend.arn_suffix

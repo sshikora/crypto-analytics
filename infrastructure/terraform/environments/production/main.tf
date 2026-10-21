@@ -6,6 +6,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.6"
+    }
   }
 
   backend "s3" {
@@ -126,6 +130,20 @@ module "backend_service" {
     module.cognito.dynamodb_access_policy_arn,
     module.email.ses_send_email_policy_arn,
   ]
+}
+
+# CloudFront and WAF in front of the API load balancer
+module "api_cdn" {
+  source = "../../modules/api_cdn"
+
+  project_name       = var.project_name
+  environment        = var.environment
+  api_domain_name    = "api.${var.domain_name}"
+  origin_domain_name = "api-origin.${var.domain_name}"
+  alb_dns_name       = module.backend_service.alb_dns_name
+  alb_zone_id        = module.backend_service.alb_zone_id
+  certificate_arn    = module.route53.certificate_arn
+  route53_zone_id    = module.route53.zone_id
 }
 
 # Static frontend on S3 + CloudFront
