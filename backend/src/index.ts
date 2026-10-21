@@ -20,6 +20,10 @@ import { runCrossoverChecker } from './jobs/crossoverChecker';
 const app = express();
 const port = process.env.PORT || 4000;
 
+// The ALB is the only proxy in front of the app; trusting one hop makes req.ip the client address,
+// so rate limiting is per visitor rather than shared by everyone behind the load balancer.
+app.set('trust proxy', 1);
+
 // CORS configuration
 app.use(cors({
   origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',

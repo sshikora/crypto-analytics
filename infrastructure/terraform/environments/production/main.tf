@@ -113,6 +113,7 @@ module "backend_service" {
     DYNAMODB_EMAIL_RATE_LIMIT_TABLE   = module.cognito.email_rate_limits_table_name
     ALLOWED_ORIGINS                   = "https://${var.domain_name}"
     COGNITO_USER_POOL_ID              = module.cognito.user_pool_id
+    COGNITO_CLIENT_ID                 = module.cognito.user_pool_client_id
     DOMAIN_NAME                       = var.domain_name
     EMAIL_FROM_NAME                   = "Crypto Quant Lab"
     # Only one copy of the checker may run at a time; the service runs a single task.
