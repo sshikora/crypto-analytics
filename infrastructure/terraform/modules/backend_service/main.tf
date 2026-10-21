@@ -108,17 +108,22 @@ resource "aws_security_group" "alb" {
   description = "Public HTTPS for the backend ALB"
 
   ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    from_port       = 443
+    to_port         = 443
+    protocol        = "tcp"
+    cidr_blocks     = var.cloudfront_only ? [] : ["0.0.0.0/0"]
+    prefix_list_ids = var.cloudfront_only ? [data.aws_ec2_managed_prefix_list.cloudfront.id] : []
   }
 
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+  dynamic "ingress" {
+    for_each = var.cloudfront_only ? [] : [80]
+
+    content {
+      from_port   = ingress.value
+      to_port     = ingress.value
+      protocol    = "tcp"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
   }
 
   egress {
@@ -131,6 +136,10 @@ resource "aws_security_group" "alb" {
   lifecycle {
     create_before_destroy = true
   }
+}
+
+data "aws_ec2_managed_prefix_list" "cloudfront" {
+  name = "com.amazonaws.global.cloudfront.origin-facing"
 }
 
 # Tasks run in public subnets with public IPs instead of behind a NAT gateway; only the ALB can reach them.
@@ -208,8 +217,47 @@ resource "aws_lb_listener" "https" {
   certificate_arn   = var.certificate_arn
 
   default_action {
+    type = var.reject_unverified_requests ? "fixed-response" : "forward"
+
+    dynamic "forward" {
+      for_each = var.reject_unverified_requests ? [] : [aws_lb_target_group.backend.arn]
+
+      content {
+        target_group {
+          arn = forward.value
+        }
+      }
+    }
+
+    dynamic "fixed_response" {
+      for_each = var.reject_unverified_requests ? [403] : []
+
+      content {
+        content_type = "text/plain"
+        message_body = "Forbidden"
+        status_code  = tostring(fixed_response.value)
+      }
+    }
+  }
+}
+
+# Requests carrying the secret header that CloudFront adds are forwarded to the backend.
+resource "aws_lb_listener_rule" "verified_origin" {
+  count = var.origin_verify_header_name == null ? 0 : 1
+
+  listener_arn = aws_lb_listener.https.arn
+  priority     = 1
+
+  action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.backend.arn
+  }
+
+  condition {
+    http_header {
+      http_header_name = var.origin_verify_header_name
+      values           = [var.origin_verify_header_value]
+    }
   }
 }
 

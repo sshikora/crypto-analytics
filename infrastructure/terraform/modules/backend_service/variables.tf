@@ -39,6 +39,31 @@ variable "manage_dns" {
   default     = false
 }
 
+variable "cloudfront_only" {
+  description = "Accept HTTPS connections to the ALB only from CloudFront origin-facing addresses"
+  type        = bool
+  default     = false
+}
+
+variable "origin_verify_header_name" {
+  description = "Header that marks requests as coming from this project's CloudFront distribution"
+  type        = string
+  default     = null
+}
+
+variable "origin_verify_header_value" {
+  description = "Secret value of the origin verify header"
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
+variable "reject_unverified_requests" {
+  description = "Return 403 for requests that lack the origin verify header"
+  type        = bool
+  default     = false
+}
+
 variable "api_alias_target" {
   description = "Alias target for the API domain, such as a CloudFront distribution; null points it at the ALB"
   type = object({

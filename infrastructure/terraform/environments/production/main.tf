@@ -107,6 +107,11 @@ module "backend_service" {
     dns_name = module.api_cdn.distribution_domain_name
     zone_id  = module.api_cdn.distribution_hosted_zone_id
   }
+
+  cloudfront_only            = true
+  origin_verify_header_name  = module.api_cdn.origin_verify_header_name
+  origin_verify_header_value = module.api_cdn.origin_verify_header_value
+  reject_unverified_requests = true
   initial_image     = "010151257830.dkr.ecr.us-east-1.amazonaws.com/crypto-analytics-backend:latest"
   cpu               = 256
   memory            = 512

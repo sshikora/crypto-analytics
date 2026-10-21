@@ -13,11 +13,13 @@ output "distribution_hosted_zone_id" {
   value       = aws_cloudfront_distribution.api.hosted_zone_id
 }
 
-output "origin_verify_header" {
-  description = "Header name and secret value CloudFront sends to the ALB"
-  value = {
-    name  = var.origin_verify_header_name
-    value = random_password.origin_verify.result
-  }
-  sensitive = true
+output "origin_verify_header_name" {
+  description = "Header CloudFront sends to the ALB on every origin request"
+  value       = var.origin_verify_header_name
+}
+
+output "origin_verify_header_value" {
+  description = "Secret value of the origin verify header"
+  value       = random_password.origin_verify.result
+  sensitive   = true
 }
