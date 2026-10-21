@@ -6,6 +6,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.6"
+    }
   }
 
   backend "s3" {
@@ -99,6 +103,15 @@ module "backend_service" {
   route53_zone_id   = module.route53.zone_id
   api_domain_name   = "api.${var.domain_name}"
   manage_dns        = true
+  api_alias_target = {
+    dns_name = module.api_cdn.distribution_domain_name
+    zone_id  = module.api_cdn.distribution_hosted_zone_id
+  }
+
+  cloudfront_only            = true
+  origin_verify_header_name  = module.api_cdn.origin_verify_header_name
+  origin_verify_header_value = module.api_cdn.origin_verify_header_value
+  reject_unverified_requests = true
   initial_image     = "010151257830.dkr.ecr.us-east-1.amazonaws.com/crypto-analytics-backend:latest"
   cpu               = 256
   memory            = 512
@@ -118,6 +131,8 @@ module "backend_service" {
     EMAIL_FROM_NAME                   = "Crypto Quant Lab"
     # Only one copy of the checker may run at a time; the service runs a single task.
     ENABLE_CROSSOVER_CHECKER = "true"
+    # CloudFront and the ALB both sit in front of the app.
+    TRUST_PROXY_HOPS = "2"
   }
 
   secret_names = ["API_KEY", "COINGECKO_API_KEY"]
@@ -126,6 +141,20 @@ module "backend_service" {
     module.cognito.dynamodb_access_policy_arn,
     module.email.ses_send_email_policy_arn,
   ]
+}
+
+# CloudFront and WAF in front of the API load balancer
+module "api_cdn" {
+  source = "../../modules/api_cdn"
+
+  project_name       = var.project_name
+  environment        = var.environment
+  api_domain_name    = "api.${var.domain_name}"
+  origin_domain_name = "api-origin.${var.domain_name}"
+  alb_dns_name       = module.backend_service.alb_dns_name
+  alb_zone_id        = module.backend_service.alb_zone_id
+  certificate_arn    = module.route53.certificate_arn
+  route53_zone_id    = module.route53.zone_id
 }
 
 # Static frontend on S3 + CloudFront

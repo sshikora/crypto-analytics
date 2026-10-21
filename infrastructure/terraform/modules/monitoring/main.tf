@@ -129,6 +129,7 @@ resource "aws_route53_health_check" "endpoint" {
   resource_path     = each.value.path
   failure_threshold = 3
   request_interval  = 30
+  regions           = var.health_check_regions
 
   tags = {
     Name = "${local.prefix}-${each.key}"
