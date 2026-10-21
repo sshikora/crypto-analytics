@@ -135,7 +135,7 @@ module "backend_service" {
     TRUST_PROXY_HOPS = "2"
   }
 
-  secret_names = ["API_KEY", "COINGECKO_API_KEY"]
+  secret_names = ["COINGECKO_API_KEY"]
 
   task_role_policy_arns = [
     module.cognito.dynamodb_access_policy_arn,
