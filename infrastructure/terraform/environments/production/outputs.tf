@@ -62,3 +62,13 @@ output "alerts_topic_arn" {
   description = "SNS topic for alarm notifications; subscribe email addresses outside OpenTofu"
   value       = module.monitoring.alerts_topic_arn
 }
+
+output "price_history_table" {
+  description = "Price history table name"
+  value       = module.data.price_history_table_name
+}
+
+output "job_security_group_id" {
+  description = "Security group for one-off job runs"
+  value       = module.scheduled_jobs.security_group_id
+}

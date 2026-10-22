@@ -56,22 +56,22 @@ module "route53" {
 module "cognito" {
   source = "../../modules/cognito"
 
-  project_name     = var.project_name
-  environment      = var.environment
-  domain_name      = var.domain_name
-  route53_zone_id  = module.route53.zone_id
-  callback_urls    = ["https://${var.domain_name}", "https://${var.domain_name}/callback", "http://localhost:5173", "http://localhost:5173/callback"]
-  logout_urls      = ["https://${var.domain_name}", "http://localhost:5173"]
+  project_name    = var.project_name
+  environment     = var.environment
+  domain_name     = var.domain_name
+  route53_zone_id = module.route53.zone_id
+  callback_urls   = ["https://${var.domain_name}", "https://${var.domain_name}/callback", "http://localhost:5173", "http://localhost:5173/callback"]
+  logout_urls     = ["https://${var.domain_name}", "http://localhost:5173"]
 }
 
 # Email Module (AWS SES + Google Workspace DNS)
 module "email" {
   source = "../../modules/email"
 
-  domain_name         = var.domain_name
-  environment         = var.environment
-  route53_zone_id     = module.route53.zone_id
-  google_dkim_value   = var.google_dkim_value
+  domain_name       = var.domain_name
+  environment       = var.environment
+  route53_zone_id   = module.route53.zone_id
+  google_dkim_value = var.google_dkim_value
 }
 
 # GitHub Actions OIDC roles for deploys and infrastructure changes
@@ -112,9 +112,9 @@ module "backend_service" {
   origin_verify_header_name  = module.api_cdn.origin_verify_header_name
   origin_verify_header_value = module.api_cdn.origin_verify_header_value
   reject_unverified_requests = true
-  initial_image     = "010151257830.dkr.ecr.us-east-1.amazonaws.com/crypto-analytics-backend:latest"
-  cpu               = 256
-  memory            = 512
+  initial_image              = "010151257830.dkr.ecr.us-east-1.amazonaws.com/crypto-analytics-backend:latest"
+  cpu                        = 256
+  memory                     = 512
 
   environment_variables = {
     PORT                              = "4000"
@@ -184,5 +184,48 @@ module "monitoring" {
   health_check_urls = {
     site = { fqdn = var.domain_name, path = "/" }
     api  = { fqdn = "api.${var.domain_name}", path = "/health" }
+  }
+}
+
+# Stored market data
+module "data" {
+  source = "../../modules/data"
+
+  project_name = var.project_name
+  environment  = var.environment
+}
+
+# Batch jobs on a schedule, run from the backend image
+module "scheduled_jobs" {
+  source = "../../modules/scheduled_jobs"
+
+  project_name       = var.project_name
+  environment        = var.environment
+  cluster_arn        = module.backend_service.cluster_arn
+  vpc_id             = module.vpc.vpc_id
+  subnet_ids         = module.vpc.public_subnet_ids
+  image              = "${module.backend_service.ecr_repository_url}:latest"
+  execution_role_arn = module.backend_service.execution_role_arn
+  alarm_topic_arn    = module.monitoring.alerts_topic_arn
+
+  task_role_policy_arns = [module.data.price_history_write_policy_arn]
+
+  environment_variables = {
+    NODE_ENV                     = "production"
+    AWS_REGION                   = var.aws_region
+    DYNAMODB_PRICE_HISTORY_TABLE = module.data.price_history_table_name
+  }
+
+  secrets = {
+    COINGECKO_API_KEY = module.backend_service.secret_parameter_arns["COINGECKO_API_KEY"]
+  }
+
+  jobs = {
+    "ingest-prices" = {
+      # CoinGecko publishes the midnight UTC snapshot shortly after midnight.
+      schedule          = "cron(30 0 * * ? *)"
+      command           = ["node", "dist/jobs/cli.js", "ingest-prices"]
+      max_silence_hours = 26
+    }
   }
 }
