@@ -52,3 +52,18 @@ output "log_group_name" {
   description = "CloudWatch log group for the backend container"
   value       = aws_cloudwatch_log_group.backend.name
 }
+
+output "cluster_arn" {
+  description = "ECS cluster ARN"
+  value       = aws_ecs_cluster.main.arn
+}
+
+output "execution_role_arn" {
+  description = "ECS execution role, which can read the backend secrets"
+  value       = aws_iam_role.execution.arn
+}
+
+output "ecr_repository_url" {
+  description = "Backend image repository URL"
+  value       = aws_ecr_repository.backend.repository_url
+}

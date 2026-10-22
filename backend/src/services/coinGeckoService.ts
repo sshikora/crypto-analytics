@@ -125,6 +125,14 @@ class CoinGeckoService {
     }
   }
 
+  async getDailyHistory(coinId: string, days: number): Promise<CoinGeckoPriceHistory> {
+    const response = await axios.get<CoinGeckoPriceHistory>(
+      `${getApiBase()}/coins/${coinId}/market_chart`,
+      buildRequestConfig({ vs_currency: 'usd', days, interval: 'daily' })
+    );
+    return response.data;
+  }
+
   async getCoinData(coinId: string): Promise<any> {
     const cacheKey = `coin_data_${coinId}`;
     const cached = cache.get(cacheKey);
