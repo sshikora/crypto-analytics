@@ -65,3 +65,8 @@ frontend/vite.config.d.ts
 
 # Private planning docs
 docs/feature-roadmap.md
+
+# Python validation package
+validation/.venv/
+__pycache__/
+.ipynb_checkpoints/

@@ -19,6 +19,7 @@ export interface GarchResult {
   alpha: number;
   beta: number;
   persistence: number;
+  logLikelihood: number;
   longRunVolatility: number;
   currentVolatility: number;
   conditionalVolatility: VolatilityPoint[];
@@ -152,6 +153,9 @@ export function fitGarch(prices: number[], timestamps: number[], symbol: string)
   }
 
   const persistence = alpha + beta;
+  const logLikelihood =
+    -garchNegLogLik([Math.log(omega), Math.log(alpha), Math.log(beta)], residuals, sampleVar) -
+    0.5 * (n - 1) * Math.log(2 * Math.PI);
 
   // Annualization factor from average inter-observation period
   const avgPeriodMs = (timestamps[timestamps.length - 1] - timestamps[0]) / (timestamps.length - 1);
@@ -174,9 +178,10 @@ export function fitGarch(prices: number[], timestamps: number[], symbol: string)
 
   const currentVariance = h;
   const currentVol = Math.sqrt(currentVariance) * annFactor * 100;
+  const nextVariance = omega + alpha * residuals[n - 1] ** 2 + beta * h;
 
   // Long-run unconditional volatility
-  const longRunVar = persistence < 1 ? omega / (1 - persistence) : currentVariance;
+  const longRunVar = persistence < 1 ? omega / (1 - persistence) : nextVariance;
   const longRunVol = Math.sqrt(longRunVar) * annFactor * 100;
 
   // Multi-step ahead forecasts (1, 7, 14, 30 day horizons in calendar days)
@@ -185,7 +190,7 @@ export function fitGarch(prices: number[], timestamps: number[], symbol: string)
     const periods = Math.max(1, Math.round((days / 365.25) * periodsPerYear));
     // k-step ahead GARCH(1,1) forecast:
     // h_{T+k} = longRunVar + persistence^(k-1) * (h_{T+1} - longRunVar)
-    const forecastVar = longRunVar + Math.pow(persistence, periods - 1) * (currentVariance - longRunVar);
+    const forecastVar = longRunVar + Math.pow(persistence, periods - 1) * (nextVariance - longRunVar);
     return {
       horizon: days,
       annualizedVolatility: Math.sqrt(Math.max(forecastVar, 0)) * annFactor * 100,
@@ -199,6 +204,7 @@ export function fitGarch(prices: number[], timestamps: number[], symbol: string)
     alpha,
     beta,
     persistence,
+    logLikelihood,
     longRunVolatility: longRunVol,
     currentVolatility: currentVol,
     conditionalVolatility: conditionalVol,
