@@ -176,6 +176,40 @@ export async function updateNotificationRule(
   return (result.Attributes as NotificationRule) || null;
 }
 
+// Two checkers can run at once while a deploy overlaps tasks. The write succeeds only if the rule still has the state
+// this checker read, so exactly one of them records (and reports) a crossover.
+export async function claimRuleTrigger(
+  ruleId: string,
+  previousState: string | undefined,
+  newState: string,
+  triggeredAt: string
+): Promise<boolean> {
+  const values: Record<string, string> = { ':newState': newState, ':triggeredAt': triggeredAt };
+  let stateCondition = 'attribute_not_exists(lastCrossoverState)';
+  if (previousState !== undefined) {
+    stateCondition = 'lastCrossoverState = :previousState';
+    values[':previousState'] = previousState;
+  }
+
+  try {
+    await getDynamoDB().send(
+      new UpdateCommand({
+        TableName: getRulesTable(),
+        Key: { ruleId },
+        UpdateExpression: 'SET lastCrossoverState = :newState, lastTriggeredAt = :triggeredAt, updatedAt = :triggeredAt',
+        ConditionExpression: `attribute_exists(ruleId) AND ${stateCondition}`,
+        ExpressionAttributeValues: values,
+      })
+    );
+    return true;
+  } catch (error) {
+    if (error instanceof Error && error.name === 'ConditionalCheckFailedException') {
+      return false;
+    }
+    throw error;
+  }
+}
+
 export async function deleteNotificationRule(ruleId: string): Promise<void> {
   await getDynamoDB().send(
     new DeleteCommand({

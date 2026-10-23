@@ -4,6 +4,7 @@ import {
   CrossoverType,
   getAllActiveRules,
   updateNotificationRule,
+  claimRuleTrigger,
 } from '../db/notificationDynamodb';
 
 export interface CrossoverResult {
@@ -272,24 +273,25 @@ export async function checkCrossoversForCoin(
       }
 
       if (crossoverResult && matchesCrossDirection(crossoverResult.type, rule.crossDirection)) {
-        detectedCrossovers.push({
-          rule,
-          crossover: {
-            type: crossoverResult.type,
-            coinId: rule.coinId,
-            coinSymbol: rule.coinSymbol,
-            priceAtCrossover: currentPrice,
-            maValues: crossoverResult.maValues,
-            maPeriods: rule.maPeriods,
-            triggeredAt: new Date().toISOString(),
-          },
-        });
+        const triggeredAt = new Date().toISOString();
+        const claimed = await claimRuleTrigger(rule.ruleId, rule.lastCrossoverState, currentState, triggeredAt);
 
-        // Update rule with new state and trigger time
-        await updateNotificationRule(rule.ruleId, {
-          lastCrossoverState: currentState,
-          lastTriggeredAt: new Date().toISOString(),
-        });
+        if (claimed) {
+          detectedCrossovers.push({
+            rule,
+            crossover: {
+              type: crossoverResult.type,
+              coinId: rule.coinId,
+              coinSymbol: rule.coinSymbol,
+              priceAtCrossover: currentPrice,
+              maValues: crossoverResult.maValues,
+              maPeriods: rule.maPeriods,
+              triggeredAt,
+            },
+          });
+        } else {
+          console.log(`[CrossoverDetection] Rule ${rule.ruleId} was already handled by another checker`);
+        }
       } else {
         // Update state even if no crossover detected (to track state changes)
         if (rule.lastCrossoverState !== currentState) {
