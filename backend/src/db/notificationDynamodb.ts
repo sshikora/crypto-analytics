@@ -39,9 +39,6 @@ function getNotificationsTable(): string {
   return process.env.DYNAMODB_NOTIFICATIONS_TABLE || 'crypto-analytics-production-notifications';
 }
 
-function getRateLimitTable(): string {
-  return process.env.DYNAMODB_EMAIL_RATE_LIMIT_TABLE || 'crypto-analytics-production-email-rate-limits';
-}
 
 
 // Types
@@ -80,13 +77,6 @@ export interface Notification {
   emailSent: boolean;
   triggeredAt: string;
   createdAt: string;
-}
-
-export interface EmailRateLimit {
-  userId: string;
-  lastEmailSentAt: string;
-  emailCount5Min: number;
-  windowStart: string;
 }
 
 export interface CreateNotificationRuleInput {
@@ -355,74 +345,4 @@ export async function getUnreadNotificationCount(userId: string): Promise<number
   );
 
   return result.Count || 0;
-}
-
-// ==================== Email Rate Limiting ====================
-
-export async function getEmailRateLimit(userId: string): Promise<EmailRateLimit | null> {
-  const result = await getDynamoDB().send(
-    new GetCommand({
-      TableName: getRateLimitTable(),
-      Key: { userId },
-    })
-  );
-
-  return (result.Item as EmailRateLimit) || null;
-}
-
-export async function updateEmailRateLimit(userId: string): Promise<EmailRateLimit> {
-  const now = new Date();
-  const nowIso = now.toISOString();
-  const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000).toISOString();
-
-  // Get existing rate limit
-  const existing = await getEmailRateLimit(userId);
-
-  let newRateLimit: EmailRateLimit;
-
-  if (!existing || existing.windowStart < fiveMinutesAgo) {
-    // Start new window
-    newRateLimit = {
-      userId,
-      lastEmailSentAt: nowIso,
-      emailCount5Min: 1,
-      windowStart: nowIso,
-    };
-  } else {
-    // Update existing window
-    newRateLimit = {
-      userId,
-      lastEmailSentAt: nowIso,
-      emailCount5Min: existing.emailCount5Min + 1,
-      windowStart: existing.windowStart,
-    };
-  }
-
-  await getDynamoDB().send(
-    new PutCommand({
-      TableName: getRateLimitTable(),
-      Item: newRateLimit,
-    })
-  );
-
-  return newRateLimit;
-}
-
-export async function canSendEmail(userId: string): Promise<boolean> {
-  const rateLimit = await getEmailRateLimit(userId);
-
-  if (!rateLimit) {
-    return true;
-  }
-
-  const now = new Date();
-  const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000).toISOString();
-
-  // If window has expired, can send
-  if (rateLimit.windowStart < fiveMinutesAgo) {
-    return true;
-  }
-
-  // Check if under limit (1 email per 5 minutes)
-  return rateLimit.emailCount5Min < 1;
 }

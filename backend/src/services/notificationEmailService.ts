@@ -3,8 +3,6 @@ import {
   Notification,
   NotificationRule,
   CrossoverType,
-  canSendEmail,
-  updateEmailRateLimit,
   markNotificationEmailSent,
 } from '../db/notificationDynamodb';
 
@@ -269,13 +267,6 @@ Manage notifications: ${settingsUrl}
  */
 export const notificationEmailService = {
   /**
-   * Check if user can receive email (rate limit check)
-   */
-  async canSendToUser(userId: string): Promise<boolean> {
-    return canSendEmail(userId);
-  },
-
-  /**
    * Send crossover alert email
    */
   async sendCrossoverAlert(
@@ -290,13 +281,6 @@ export const notificationEmailService = {
       return false;
     }
 
-    // Check rate limit
-    const canSend = await canSendEmail(userId);
-    if (!canSend) {
-      console.log(`[NotificationEmail] Rate limit exceeded for user ${userId}`);
-      return false;
-    }
-
     try {
       const crossoverTypeDisplay = formatCrossoverType(notification.crossoverType);
       const subject = `[Crypto Alert] ${notification.coinSymbol.toUpperCase()} ${crossoverTypeDisplay}`;
@@ -307,9 +291,6 @@ export const notificationEmailService = {
         htmlBody: generateCrossoverEmailHtml(notification),
         textBody: generateCrossoverEmailText(notification),
       });
-
-      // Update rate limit
-      await updateEmailRateLimit(userId);
 
       await markNotificationEmailSent(notification.notificationId);
 

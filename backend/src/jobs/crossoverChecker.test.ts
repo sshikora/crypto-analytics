@@ -56,7 +56,6 @@ describe('crossover checker email delivery', () => {
       notificationId: 'notification-123',
       createdAt: '2026-10-23T00:00:05Z',
     }));
-    vi.mocked(notificationDb.canSendEmail).mockResolvedValue(true);
   });
 
   it('emails the verified address on the Cognito account and records the send', async () => {
@@ -71,7 +70,22 @@ describe('crossover checker email delivery', () => {
       expect.objectContaining({ to: 'user@example.com', subject: '[Crypto Alert] BTC Golden Cross' })
     );
     expect(notificationDb.markNotificationEmailSent).toHaveBeenCalledWith('notification-123');
-    expect(notificationDb.updateEmailRateLimit).toHaveBeenCalledWith('user-123');
+  });
+
+  it('emails every rule that crosses in the same run, not just one per user', async () => {
+    const ethRule = { ...rule, ruleId: 'rule-456', coinId: 'ethereum', coinSymbol: 'ETH' };
+    vi.mocked(processAllActiveRules).mockResolvedValue([
+      { rule, crossover },
+      { rule: ethRule, crossover: { ...crossover, coinId: 'ethereum', coinSymbol: 'ETH' } },
+    ]);
+    cognitoSend.mockResolvedValue(cognitoUser('true') as never);
+
+    await triggerCrossoverCheck();
+
+    expect(emailService.sendEmail).toHaveBeenCalledTimes(2);
+    expect(emailService.sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ subject: '[Crypto Alert] ETH Golden Cross' })
+    );
   });
 
   it('keeps the in-app notification but sends no email when the address is unverified', async () => {
