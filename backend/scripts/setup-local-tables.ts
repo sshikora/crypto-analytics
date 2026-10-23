@@ -38,11 +38,6 @@ const tables: TableConfig[] = [
     },
     ttlAttribute: 'expiresAt',
   },
-  {
-    name: `${PROJECT_NAME}-${ENVIRONMENT}-email-rate-limits`,
-    hashKey: 'userId',
-    ttlAttribute: 'expiresAt',
-  },
 ];
 
 async function tableExists(tableName: string): Promise<boolean> {
@@ -152,7 +147,6 @@ async function main() {
   console.log('\nSetup complete! Update your .env file with:');
   console.log(`DYNAMODB_NOTIFICATION_RULES_TABLE=${PROJECT_NAME}-${ENVIRONMENT}-notification-rules`);
   console.log(`DYNAMODB_NOTIFICATIONS_TABLE=${PROJECT_NAME}-${ENVIRONMENT}-notifications`);
-  console.log(`DYNAMODB_EMAIL_RATE_LIMIT_TABLE=${PROJECT_NAME}-${ENVIRONMENT}-email-rate-limits`);
 }
 
 main().catch(console.error);

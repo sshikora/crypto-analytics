@@ -286,30 +286,6 @@ resource "aws_dynamodb_table" "notifications" {
   }
 }
 
-# DynamoDB table for email rate limits
-resource "aws_dynamodb_table" "email_rate_limits" {
-  name           = "${var.project_name}-${var.environment}-email-rate-limits"
-  billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "userId"
-
-  attribute {
-    name = "userId"
-    type = "S"
-  }
-
-  # TTL to automatically clean up old rate limit records
-  ttl {
-    attribute_name = "expiresAt"
-    enabled        = true
-  }
-
-  tags = {
-    Name        = "${var.project_name}-${var.environment}-email-rate-limits"
-    Environment = var.environment
-    Project     = var.project_name
-  }
-}
-
 # IAM policy for accessing DynamoDB from backend
 resource "aws_iam_policy" "dynamodb_access" {
   name        = "${var.project_name}-${var.environment}-dynamodb-access"
@@ -336,7 +312,6 @@ resource "aws_iam_policy" "dynamodb_access" {
           "${aws_dynamodb_table.notification_rules.arn}/index/*",
           aws_dynamodb_table.notifications.arn,
           "${aws_dynamodb_table.notifications.arn}/index/*",
-          aws_dynamodb_table.email_rate_limits.arn,
         ]
       }
     ]
