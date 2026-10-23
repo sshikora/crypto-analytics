@@ -156,6 +156,7 @@ resource "aws_scheduler_schedule" "job" {
     ecs_parameters {
       task_definition_arn = aws_ecs_task_definition.job[each.key].arn
       launch_type         = "FARGATE"
+      propagate_tags      = "TASK_DEFINITION"
 
       network_configuration {
         subnets          = var.subnet_ids
