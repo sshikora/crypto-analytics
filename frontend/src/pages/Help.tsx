@@ -208,7 +208,7 @@ export const Help = () => {
             <li>View and manage all your rules on each coin&apos;s detail page.</li>
             <li>Toggle rules on or off without deleting them.</li>
             <li>Delete rules you no longer need.</li>
-            <li>Email notifications are rate-limited to one per rule every 5 minutes.</li>
+            <li>Each rule alerts at most once every 24 hours. Emails go to the verified address you sign in with.</li>
           </ul>
         </section>
 

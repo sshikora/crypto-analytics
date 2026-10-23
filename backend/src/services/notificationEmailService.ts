@@ -3,9 +3,7 @@ import {
   Notification,
   NotificationRule,
   CrossoverType,
-  canSendEmail,
-  updateEmailRateLimit,
-  updateNotificationReadStatus,
+  markNotificationEmailSent,
 } from '../db/notificationDynamodb';
 
 const DOMAIN_NAME = process.env.DOMAIN_NAME || 'cryptoquantlab.com';
@@ -269,13 +267,6 @@ Manage notifications: ${settingsUrl}
  */
 export const notificationEmailService = {
   /**
-   * Check if user can receive email (rate limit check)
-   */
-  async canSendToUser(userId: string): Promise<boolean> {
-    return canSendEmail(userId);
-  },
-
-  /**
    * Send crossover alert email
    */
   async sendCrossoverAlert(
@@ -290,13 +281,6 @@ export const notificationEmailService = {
       return false;
     }
 
-    // Check rate limit
-    const canSend = await canSendEmail(userId);
-    if (!canSend) {
-      console.log(`[NotificationEmail] Rate limit exceeded for user ${userId}`);
-      return false;
-    }
-
     try {
       const crossoverTypeDisplay = formatCrossoverType(notification.crossoverType);
       const subject = `[Crypto Alert] ${notification.coinSymbol.toUpperCase()} ${crossoverTypeDisplay}`;
@@ -308,17 +292,11 @@ export const notificationEmailService = {
         textBody: generateCrossoverEmailText(notification),
       });
 
-      // Update rate limit
-      await updateEmailRateLimit(userId);
-
-      // Mark notification as email sent
-      await updateNotificationReadStatus(notification.notificationId, notification.isRead);
-      // Note: We should add an updateNotificationEmailSent function, but for now
-      // we'll handle this in the calling code
+      await markNotificationEmailSent(notification.notificationId);
 
       console.log(
         `[NotificationEmail] Sent alert for ${notification.coinSymbol} ` +
-        `${notification.crossoverType} to ${userEmail}`
+        `${notification.crossoverType} to user ${userId}`
       );
 
       return true;

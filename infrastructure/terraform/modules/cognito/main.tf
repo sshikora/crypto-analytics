@@ -342,3 +342,20 @@ resource "aws_iam_policy" "dynamodb_access" {
     ]
   })
 }
+
+# Lets the backend look up a user's current email address when sending alerts
+resource "aws_iam_policy" "user_lookup" {
+  name        = "${var.project_name}-${var.environment}-cognito-user-lookup"
+  description = "Read user attributes from the Cognito user pool"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["cognito-idp:AdminGetUser"]
+        Resource = aws_cognito_user_pool.main.arn
+      }
+    ]
+  })
+}

@@ -2,19 +2,7 @@ import { processAllActiveRules, DetectedCrossover } from '../services/crossoverD
 import { notificationService } from '../services/notificationService';
 import { notificationEmailService } from '../services/notificationEmailService';
 import { getNotificationRule } from '../db/notificationDynamodb';
-
-/**
- * Get user email from Cognito (placeholder - in production, this would query Cognito)
- * For now, we'll need to store email in the rule or preferences
- */
-async function getUserEmail(userId: string): Promise<string | null> {
-  // In a production environment, you would:
-  // 1. Store user email in DynamoDB preferences
-  // 2. Or query AWS Cognito AdminGetUser API
-  // For now, return null to skip email sending
-  console.log(`[CrossoverChecker] TODO: Implement getUserEmail for ${userId}`);
-  return null;
-}
+import { getVerifiedEmail } from '../services/userDirectoryService';
 
 /**
  * Process a single detected crossover
@@ -33,7 +21,7 @@ async function processCrossover(detected: DetectedCrossover): Promise<void> {
 
     // Send email if enabled
     if (rule.emailEnabled) {
-      const userEmail = await getUserEmail(rule.userId);
+      const userEmail = await getVerifiedEmail(rule.userId);
 
       if (userEmail) {
         const emailSent = await notificationEmailService.sendCrossoverAlert(
@@ -46,12 +34,12 @@ async function processCrossover(detected: DetectedCrossover): Promise<void> {
         if (emailSent) {
           console.log(
             `[CrossoverChecker] Sent email for ${crossover.coinSymbol} ` +
-            `${crossover.type} to ${userEmail}`
+            `${crossover.type} (rule: ${rule.ruleId})`
           );
         }
       } else {
         console.log(
-          `[CrossoverChecker] No email address for user ${rule.userId}, skipping email`
+          `[CrossoverChecker] No verified email for user ${rule.userId}, skipping email`
         );
       }
     }

@@ -43,39 +43,10 @@ describe('NotificationEmailService', () => {
     process.env.DOMAIN_NAME = 'cryptoquantlab.com';
   });
 
-  describe('canSendToUser', () => {
-    it('should return true if user can receive email', async () => {
-      vi.mocked(notificationDb.canSendEmail).mockResolvedValue(true);
-
-      const result = await notificationEmailService.canSendToUser('user-123');
-
-      expect(result).toBe(true);
-      expect(notificationDb.canSendEmail).toHaveBeenCalledWith('user-123');
-    });
-
-    it('should return false if rate limit exceeded', async () => {
-      vi.mocked(notificationDb.canSendEmail).mockResolvedValue(false);
-
-      const result = await notificationEmailService.canSendToUser('user-123');
-
-      expect(result).toBe(false);
-    });
-  });
-
   describe('sendCrossoverAlert', () => {
     it('should send email successfully', async () => {
-      vi.mocked(notificationDb.canSendEmail).mockResolvedValue(true);
       vi.mocked(emailService.emailService.sendEmail).mockResolvedValue(undefined);
-      vi.mocked(notificationDb.updateEmailRateLimit).mockResolvedValue({
-        userId: 'user-123',
-        lastEmailSentAt: new Date().toISOString(),
-        emailCount5Min: 1,
-        windowStart: new Date().toISOString(),
-      });
-      vi.mocked(notificationDb.updateNotificationReadStatus).mockResolvedValue({
-        ...mockNotification,
-        emailSent: true,
-      });
+      vi.mocked(notificationDb.markNotificationEmailSent).mockResolvedValue(undefined);
 
       const result = await notificationEmailService.sendCrossoverAlert(
         'user@example.com',
@@ -86,7 +57,7 @@ describe('NotificationEmailService', () => {
 
       expect(result).toBe(true);
       expect(emailService.emailService.sendEmail).toHaveBeenCalled();
-      expect(notificationDb.updateEmailRateLimit).toHaveBeenCalledWith('user-123');
+      expect(notificationDb.markNotificationEmailSent).toHaveBeenCalledWith('notification-123');
     });
 
     it('should not send if email disabled in rule', async () => {
@@ -103,22 +74,7 @@ describe('NotificationEmailService', () => {
       expect(emailService.emailService.sendEmail).not.toHaveBeenCalled();
     });
 
-    it('should not send if rate limit exceeded', async () => {
-      vi.mocked(notificationDb.canSendEmail).mockResolvedValue(false);
-
-      const result = await notificationEmailService.sendCrossoverAlert(
-        'user@example.com',
-        'user-123',
-        mockNotification,
-        mockRule
-      );
-
-      expect(result).toBe(false);
-      expect(emailService.emailService.sendEmail).not.toHaveBeenCalled();
-    });
-
     it('should handle email sending errors', async () => {
-      vi.mocked(notificationDb.canSendEmail).mockResolvedValue(true);
       vi.mocked(emailService.emailService.sendEmail).mockRejectedValue(
         new Error('Email failed')
       );

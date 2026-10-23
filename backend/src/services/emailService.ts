@@ -63,7 +63,7 @@ export class EmailService {
       const command = new SendEmailCommand(params);
       const response = await sesClient.send(command);
       console.log('[Email] Successfully sent email:', {
-        to: toAddresses,
+        recipients: toAddresses.length,
         subject,
         messageId: response.MessageId,
       });

@@ -53,6 +53,11 @@ output "dynamodb_access_policy_arn" {
   value       = aws_iam_policy.dynamodb_access.arn
 }
 
+output "user_lookup_policy_arn" {
+  description = "IAM policy ARN for reading Cognito user attributes"
+  value       = aws_iam_policy.user_lookup.arn
+}
+
 output "ses_domain_verification_token" {
   description = "SES domain verification token to add to DNS"
   value       = aws_ses_domain_identity.main.verification_token

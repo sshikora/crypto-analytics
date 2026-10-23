@@ -140,6 +140,7 @@ module "backend_service" {
   task_role_policy_arns = [
     module.cognito.dynamodb_access_policy_arn,
     module.email.ses_send_email_policy_arn,
+    module.cognito.user_lookup_policy_arn,
   ]
 }
 
