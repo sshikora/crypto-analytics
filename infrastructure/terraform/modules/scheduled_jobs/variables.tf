@@ -57,12 +57,13 @@ variable "alarm_topic_arn" {
 }
 
 variable "jobs" {
-  description = "Jobs keyed by name, as passed to the backend job CLI"
+  description = "Jobs keyed by name, as passed to the backend job CLI; about explains the job in its alarm emails"
   type = map(object({
     schedule          = string
     command           = list(string)
     cpu               = optional(number, 256)
     memory            = optional(number, 512)
     max_silence_hours = number
+    about             = string
   }))
 }

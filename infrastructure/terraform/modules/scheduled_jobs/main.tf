@@ -1,6 +1,13 @@
 locals {
   name          = "${var.project_name}-${var.environment}-jobs"
   log_namespace = "${var.project_name}/${var.environment}/jobs"
+  region        = data.aws_region.current.name
+
+  # Commands quoted in alarm emails; the region is explicit because local CLI defaults may differ.
+  tail_logs = "aws logs tail ${aws_cloudwatch_log_group.jobs.name} --region ${local.region}"
+  run_now = {
+    for key, _ in var.jobs : key => "aws ecs run-task --region ${local.region} --cluster ${element(split("/", var.cluster_arn), 1)} --launch-type FARGATE --task-definition ${local.name}-${key} --network-configuration 'awsvpcConfiguration={subnets=[${join(",", var.subnet_ids)}],securityGroups=[${aws_security_group.jobs.id}],assignPublicIp=ENABLED}'"
+  }
 }
 
 data "aws_region" "current" {}
@@ -198,7 +205,6 @@ resource "aws_cloudwatch_metric_alarm" "missed_run" {
   for_each = var.jobs
 
   alarm_name          = "${local.name}-${each.key}-missed-run"
-  alarm_description   = "No successful ${each.key} run in ${each.value.max_silence_hours} hours"
   namespace           = local.log_namespace
   metric_name         = aws_cloudwatch_log_metric_filter.succeeded[each.key].metric_transformation[0].name
   statistic           = "Sum"
@@ -210,14 +216,22 @@ resource "aws_cloudwatch_metric_alarm" "missed_run" {
   treat_missing_data  = "breaching"
 
   alarm_actions = [var.alarm_topic_arn]
-  ok_actions    = [var.alarm_topic_arn]
+
+  alarm_description = chomp(<<-EOT
+    What it means: no successful ${each.key} run logged in ${each.value.max_silence_hours} hours. ${each.value.about}
+    Ignore it on the alarm's first day; it clears after the first run.
+    What to do:
+    1. Read the log: ${local.tail_logs} --since ${each.value.max_silence_hours}h
+    2. A job_failed line means it ran and failed (see the failed-run alarm). No lines means it never started; check the schedule: aws scheduler get-schedule --region ${local.region} --name ${local.name}-${each.key} --query State
+    3. Run it now: ${local.run_now[each.key]}
+    EOT
+  )
 }
 
 resource "aws_cloudwatch_metric_alarm" "failed_run" {
   for_each = var.jobs
 
   alarm_name          = "${local.name}-${each.key}-failed"
-  alarm_description   = "A ${each.key} run reported failure"
   namespace           = local.log_namespace
   metric_name         = aws_cloudwatch_log_metric_filter.failed[each.key].metric_transformation[0].name
   statistic           = "Sum"
@@ -228,5 +242,13 @@ resource "aws_cloudwatch_metric_alarm" "failed_run" {
   treat_missing_data  = "notBreaching"
 
   alarm_actions = [var.alarm_topic_arn]
-  ok_actions    = [var.alarm_topic_arn]
+
+  alarm_description = chomp(<<-EOT
+    What it means: a ${each.key} run logged job_failed, either because it crashed or because too many items failed after retries. ${each.value.about}
+    What to do:
+    1. Find the failure: ${local.tail_logs} --since 2h --filter-pattern '{ $.event = "job_failed" }'
+    2. The line's error or failed field says what went wrong.
+    3. Once fixed, run it again: ${local.run_now[each.key]}
+    EOT
+  )
 }
