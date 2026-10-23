@@ -40,9 +40,16 @@ variable "health_check_regions" {
 }
 
 variable "health_check_urls" {
-  description = "Public HTTPS endpoints checked from outside AWS, keyed by short name"
+  description = "Public HTTPS endpoints checked from outside AWS, keyed by short name; impact and checks go into the alarm email"
   type = map(object({
-    fqdn = string
-    path = string
+    fqdn   = string
+    path   = string
+    impact = string
+    checks = string
   }))
+}
+
+variable "deploy_runs_url" {
+  description = "Page listing deploy workflow runs, linked from alarm emails"
+  type        = string
 }

@@ -181,9 +181,27 @@ module "monitoring" {
   ecs_service_name        = module.backend_service.service_name
   log_group_name          = module.backend_service.log_group_name
 
+  deploy_runs_url = "https://github.com/sshikora/crypto-analytics/actions/workflows/deploy.yml"
+
   health_check_urls = {
-    site = { fqdn = var.domain_name, path = "/" }
-    api  = { fqdn = "api.${var.domain_name}", path = "/health" }
+    site = {
+      fqdn   = var.domain_name
+      path   = "/"
+      impact = "Visitors can't load the site."
+      checks = <<-EOT
+        2. The site is served from S3 through CloudFront. If the latest deploy's "Publish frontend" step failed, re-run that deploy: https://github.com/sshikora/crypto-analytics/actions/workflows/deploy.yml
+        3. Otherwise check CloudFront and S3 on https://health.aws.amazon.com/health/status
+      EOT
+    }
+    api = {
+      fqdn   = "api.${var.domain_name}"
+      path   = "/health"
+      impact = "The site loads but can't fetch any data."
+      checks = <<-EOT
+        2. If the no-healthy-targets alarm also fired, the backend is down; follow that alarm's steps.
+        3. If not, the backend is fine and something in front of it is failing: CloudFront, the WAF, DNS or the certificate. Run curl -sv https://api.${var.domain_name}/health and look at the status and error.
+      EOT
+    }
   }
 }
 
@@ -226,6 +244,7 @@ module "scheduled_jobs" {
       schedule          = "cron(30 0 * * ? *)"
       command           = ["node", "dist/jobs/cli.js", "ingest-prices"]
       max_silence_hours = 26
+      about             = "It runs at 00:30 UTC and saves daily prices for the top 100 coins. Each run re-fetches 3 days, so one or two missed nights fill themselves in."
     }
   }
 }
