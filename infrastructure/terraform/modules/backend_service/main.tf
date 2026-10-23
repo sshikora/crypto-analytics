@@ -306,6 +306,9 @@ resource "aws_ecs_service" "backend" {
   launch_type                       = "FARGATE"
   health_check_grace_period_seconds = 30
 
+  # Fargate cost is billed per task, so tasks need the service's tags for cost allocation.
+  propagate_tags = "SERVICE"
+
   network_configuration {
     subnets          = var.public_subnet_ids
     security_groups  = [aws_security_group.task.id]
