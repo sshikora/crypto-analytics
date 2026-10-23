@@ -194,6 +194,48 @@ describe('CrossoverDetectionService', () => {
       expect(result.length).toBeGreaterThanOrEqual(0);
     });
 
+    // Price dips below its 3-day MA, then jumps above it on the latest day.
+    const priceCrossingAboveMa = [10, 10, 10, 9, 20];
+    const priceMaRule3 = { ...mockRule, ruleType: 'PRICE_MA_CROSSOVER' as const, maPeriods: [3] };
+
+    function mockPrices(prices: number[]) {
+      vi.mocked(coinGeckoService.coinGeckoService.getPriceHistory).mockResolvedValue({
+        coinId: 'bitcoin',
+        symbol: 'BTC',
+        name: 'Bitcoin',
+        prices: prices.map((price, i) => [Date.now() - (prices.length - i) * 86400000, price]),
+      });
+    }
+
+    it('reports a crossover after claiming the rule against the state it read', async () => {
+      mockPrices(priceCrossingAboveMa);
+      vi.mocked(notificationDb.claimRuleTrigger).mockResolvedValue(true);
+
+      const result = await checkCrossoversForCoin('bitcoin', [
+        { ...priceMaRule3, lastCrossoverState: 'PRICE_BELOW_MA' },
+      ]);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].crossover.type).toBe('PRICE_ABOVE_MA');
+      expect(notificationDb.claimRuleTrigger).toHaveBeenCalledWith(
+        'rule-123',
+        'PRICE_BELOW_MA',
+        'PRICE_ABOVE_MA',
+        result[0].crossover.triggeredAt
+      );
+    });
+
+    it('does not report a crossover another checker already claimed', async () => {
+      mockPrices(priceCrossingAboveMa);
+      vi.mocked(notificationDb.claimRuleTrigger).mockResolvedValue(false);
+
+      const result = await checkCrossoversForCoin('bitcoin', [
+        { ...priceMaRule3, lastCrossoverState: 'PRICE_BELOW_MA' },
+      ]);
+
+      expect(result).toEqual([]);
+    });
+
     it('should skip rules in cooldown period', async () => {
       const recentlyTriggered = new Date(Date.now() - 1000 * 60 * 60).toISOString(); // 1 hour ago
       const ruleWithCooldown = {
