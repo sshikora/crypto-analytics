@@ -5,7 +5,7 @@ import {
   CrossoverType,
   canSendEmail,
   updateEmailRateLimit,
-  updateNotificationReadStatus,
+  markNotificationEmailSent,
 } from '../db/notificationDynamodb';
 
 const DOMAIN_NAME = process.env.DOMAIN_NAME || 'cryptoquantlab.com';
@@ -311,14 +311,11 @@ export const notificationEmailService = {
       // Update rate limit
       await updateEmailRateLimit(userId);
 
-      // Mark notification as email sent
-      await updateNotificationReadStatus(notification.notificationId, notification.isRead);
-      // Note: We should add an updateNotificationEmailSent function, but for now
-      // we'll handle this in the calling code
+      await markNotificationEmailSent(notification.notificationId);
 
       console.log(
         `[NotificationEmail] Sent alert for ${notification.coinSymbol} ` +
-        `${notification.crossoverType} to ${userEmail}`
+        `${notification.crossoverType} to user ${userId}`
       );
 
       return true;

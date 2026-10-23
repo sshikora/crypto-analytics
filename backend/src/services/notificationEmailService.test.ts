@@ -72,10 +72,7 @@ describe('NotificationEmailService', () => {
         emailCount5Min: 1,
         windowStart: new Date().toISOString(),
       });
-      vi.mocked(notificationDb.updateNotificationReadStatus).mockResolvedValue({
-        ...mockNotification,
-        emailSent: true,
-      });
+      vi.mocked(notificationDb.markNotificationEmailSent).mockResolvedValue(undefined);
 
       const result = await notificationEmailService.sendCrossoverAlert(
         'user@example.com',
@@ -87,6 +84,7 @@ describe('NotificationEmailService', () => {
       expect(result).toBe(true);
       expect(emailService.emailService.sendEmail).toHaveBeenCalled();
       expect(notificationDb.updateEmailRateLimit).toHaveBeenCalledWith('user-123');
+      expect(notificationDb.markNotificationEmailSent).toHaveBeenCalledWith('notification-123');
     });
 
     it('should not send if email disabled in rule', async () => {

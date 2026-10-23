@@ -315,6 +315,19 @@ export async function updateNotificationReadStatus(
   return (result.Attributes as Notification) || null;
 }
 
+export async function markNotificationEmailSent(notificationId: string): Promise<void> {
+  await getDynamoDB().send(
+    new UpdateCommand({
+      TableName: getNotificationsTable(),
+      Key: { notificationId },
+      UpdateExpression: 'SET emailSent = :emailSent',
+      ExpressionAttributeValues: {
+        ':emailSent': true,
+      },
+    })
+  );
+}
+
 export async function markAllUserNotificationsAsRead(userId: string): Promise<void> {
   const notifications = await getUserNotifications(userId, { unreadOnly: true });
 
