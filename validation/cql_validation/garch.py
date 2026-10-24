@@ -1,4 +1,4 @@
-"""Reference GARCH(1,1) matching the backend's conventions in garchService.ts.
+"""Reference GARCH(1,1) matching the backend's conventions in backend/src/models/garch.ts.
 
 Conventions, chosen to match the backend exactly:
 - Log returns, demeaned by the sample mean (mean is not estimated jointly).
@@ -13,8 +13,9 @@ import numpy as np
 from arch import arch_model
 from scipy.optimize import minimize
 
+from .returns import log_returns
+
 LOG_2PI = np.log(2 * np.pi)
-MS_PER_YEAR = 365.25 * 24 * 60 * 60 * 1000
 
 
 @dataclass
@@ -28,7 +29,7 @@ class GarchFit:
 
 
 def demeaned_log_returns(prices: np.ndarray) -> np.ndarray:
-    returns = np.diff(np.log(prices))
+    returns = log_returns(prices)
     return returns - returns.mean()
 
 
@@ -92,11 +93,6 @@ def fit(prices: np.ndarray) -> GarchFit:
         variance=h[1:],
         next_variance=float(omega + alpha * resid[-1] ** 2 + beta * h[-1]),
     )
-
-
-def periods_per_year(timestamps_ms: np.ndarray) -> float:
-    avg_period = (timestamps_ms[-1] - timestamps_ms[0]) / (len(timestamps_ms) - 1)
-    return MS_PER_YEAR / avg_period
 
 
 def forecast_variance(f: GarchFit, steps: int) -> float:
