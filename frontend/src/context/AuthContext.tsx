@@ -12,6 +12,7 @@ import {
 } from 'aws-amplify/auth';
 import { User, UserPreferences } from '../types/auth';
 import { posthog } from '../services/posthog';
+import { track } from '../services/analytics';
 
 interface AuthContextType {
   user: User | null;
@@ -129,6 +130,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           },
         },
       });
+      track('signup', {});
     } catch (error) {
       throw error;
     }
