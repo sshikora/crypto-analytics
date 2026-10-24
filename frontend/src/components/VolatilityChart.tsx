@@ -16,10 +16,23 @@ import {
 import { format } from 'date-fns';
 import { GET_VOLATILITY_MODEL } from '../services/queries';
 import { TimeRange } from '../types/crypto';
+import { MetricCard, MetricInfo } from './MetricCard';
 
 interface VolatilityChartProps {
   symbol: string;
 }
+
+const GARCH_INFO: MetricInfo = {
+  model: 'GARCH(1,1), fitted by maximum likelihood',
+  window: 'CoinGecko prices for the selected range. Shorter ranges use finer price intervals, so a "period" is shorter.',
+  assumptions: [
+    'Returns are normally distributed around their average',
+    "Today's variance depends on yesterday's variance and yesterday's surprise",
+    'Annualized from the average spacing of the price data',
+  ],
+  validation:
+    'Matches an independent Python implementation on a year of daily Bitcoin prices and on simulated data with known parameters.',
+};
 
 const TIME_RANGES = [
   { value: TimeRange.WEEK, label: '1W' },
@@ -75,26 +88,36 @@ export const VolatilityChart: React.FC<VolatilityChartProps> = ({ symbol }) => {
 
       {model && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="bg-gray-50 rounded-lg p-3">
-            <p className="text-xs text-gray-500">Current Volatility</p>
-            <p className="text-lg font-semibold text-orange-600">{model.currentVolatility.toFixed(1)}%</p>
-          </div>
-          <div className="bg-gray-50 rounded-lg p-3">
-            <p className="text-xs text-gray-500">Long-Run Volatility</p>
-            <p className="text-lg font-semibold text-blue-600">{model.longRunVolatility.toFixed(1)}%</p>
-          </div>
-          <div className="bg-gray-50 rounded-lg p-3">
-            <p className="text-xs text-gray-500">Persistence (α+β)</p>
-            <p className="text-lg font-semibold">{model.persistence.toFixed(4)}</p>
-          </div>
-          <div className="bg-gray-50 rounded-lg p-3">
-            <p className="text-xs text-gray-500">Half-Life</p>
-            <p className="text-lg font-semibold">
-              {model.persistence < 1
+          <MetricCard
+            label="Current Volatility"
+            value={`${model.currentVolatility.toFixed(1)}%`}
+            description="How much the price is expected to swing over a year at today's level of turbulence."
+            info={GARCH_INFO}
+            valueClassName="text-orange-600"
+          />
+          <MetricCard
+            label="Long-Run Volatility"
+            value={`${model.longRunVolatility.toFixed(1)}%`}
+            description="The level volatility drifts back to as recent shocks fade."
+            info={GARCH_INFO}
+            valueClassName="text-blue-600"
+          />
+          <MetricCard
+            label="Persistence (α+β)"
+            value={model.persistence.toFixed(4)}
+            description="How long a volatility shock lingers. Closer to 1 means it fades more slowly."
+            info={GARCH_INFO}
+          />
+          <MetricCard
+            label="Half-Life"
+            value={
+              model.persistence < 1
                 ? `${Math.round(Math.log(0.5) / Math.log(model.persistence))} periods`
-                : '∞'}
-            </p>
-          </div>
+                : '∞'
+            }
+            description="Price intervals until a volatility shock has faded by half."
+            info={GARCH_INFO}
+          />
         </div>
       )}
 

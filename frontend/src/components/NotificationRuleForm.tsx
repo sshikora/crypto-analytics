@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNotifications } from '../context/NotificationContext';
+import { track } from '../services/analytics';
 import {
   NotificationRule,
   NotificationRuleType,
@@ -97,6 +98,7 @@ const NotificationRuleForm = ({
           emailEnabled,
         };
         await createRule(input);
+        track('create_alert', { coinSymbol, ruleType, emailEnabled });
       }
 
       onSuccess?.();

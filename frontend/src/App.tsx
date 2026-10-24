@@ -13,6 +13,7 @@ import { Login } from './pages/Login';
 import { SignUp } from './pages/SignUp';
 import { ForgotPassword } from './pages/ForgotPassword';
 import NotificationToast from './components/NotificationToast';
+import { Disclaimer } from './components/Disclaimer';
 import { apolloClient } from './services/apollo';
 import { store } from './store';
 import { AuthProvider } from './context/AuthContext';
@@ -59,6 +60,11 @@ function App() {
                       <Route path="/forgot-password" element={<ForgotPassword />} />
                     </Routes>
                   </main>
+                  <footer className="border-t border-gray-200">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                      <Disclaimer />
+                    </div>
+                  </footer>
                 </div>
                 <NotificationToast />
               </Router>
