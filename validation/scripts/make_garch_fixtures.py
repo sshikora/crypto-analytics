@@ -13,7 +13,7 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from cql_validation import garch  # noqa: E402
+from cql_validation import garch, returns  # noqa: E402
 
 FIXTURE_DIR = ROOT.parent / "backend" / "src" / "test" / "fixtures" / "garch"
 FORECAST_DAYS = [1, 7, 14, 30]
@@ -36,7 +36,7 @@ def simulated_series(n: int, omega: float, alpha: float, beta: float, seed: int)
 
 def build(name: str, description: str, prices: np.ndarray, timestamps: np.ndarray, extra: dict) -> None:
     f = garch.fit(prices)
-    ppy = garch.periods_per_year(timestamps)
+    ppy = returns.periods_per_year(timestamps)
     ann = np.sqrt(ppy) * 100
 
     forecasts = []
