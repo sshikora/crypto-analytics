@@ -43,11 +43,6 @@ output "dynamodb_notifications_table" {
   value       = module.cognito.notifications_table_name
 }
 
-output "dynamodb_email_rate_limits_table" {
-  description = "DynamoDB table for email rate limits"
-  value       = module.cognito.email_rate_limits_table_name
-}
-
 output "ses_domain_verification_token" {
   description = "SES domain verification token - Add TXT record: _amazonses.cryptoquantlab.com"
   value       = module.cognito.ses_domain_verification_token

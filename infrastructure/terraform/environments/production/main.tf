@@ -123,7 +123,6 @@ module "backend_service" {
     DYNAMODB_PREFERENCES_TABLE        = module.cognito.dynamodb_table_name
     DYNAMODB_NOTIFICATION_RULES_TABLE = module.cognito.notification_rules_table_name
     DYNAMODB_NOTIFICATIONS_TABLE      = module.cognito.notifications_table_name
-    DYNAMODB_EMAIL_RATE_LIMIT_TABLE   = module.cognito.email_rate_limits_table_name
     ALLOWED_ORIGINS                   = "https://${var.domain_name}"
     COGNITO_USER_POOL_ID              = module.cognito.user_pool_id
     COGNITO_CLIENT_ID                 = module.cognito.user_pool_client_id

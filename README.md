@@ -1,6 +1,6 @@
 # Crypto Analytics Platform
 
-A comprehensive cryptocurrency analytics web application built with React, Redux, TypeScript, Tailwind CSS, GraphQL, Drizzle ORM, and Express.
+A comprehensive cryptocurrency analytics web application built with React, Redux, TypeScript, Tailwind CSS, GraphQL, DynamoDB, and Express.
 
 **Live Demo**: https://cryptoquantlab.com (when deployed)
 
@@ -37,8 +37,7 @@ A comprehensive cryptocurrency analytics web application built with React, Redux
 - **Express** - Web server
 - **GraphQL Yoga** - GraphQL server
 - **TypeScript** - Type safety
-- **Drizzle ORM** - Database ORM
-- **PostgreSQL** - Database (optional, data is fetched from CoinGecko API)
+- **DynamoDB** - Notification rules, user preferences and daily price history
 - **Node Cache** - API response caching
 - **Axios** - HTTP client for external APIs
 
@@ -100,7 +99,6 @@ crypto-analytics/
 ## Prerequisites
 
 - Node.js 18+ and npm/yarn
-- PostgreSQL (optional, if you want to persist data)
 
 ## Installation
 
@@ -119,9 +117,8 @@ npm install
 # Copy environment variables
 cp .env.example .env
 
-# Edit .env if needed (optional for database)
+# Edit .env if needed
 # PORT=4000
-# DATABASE_URL=postgresql://user:password@localhost:5432/crypto_analytics
 ```
 
 ### 3. Set up Frontend
@@ -304,23 +301,6 @@ The application uses the **CoinGecko API** to fetch real-time cryptocurrency dat
 - Market statistics
 - 5-minute cache for optimal performance
 
-## Optional Database Setup
-
-If you want to persist cryptocurrency data:
-
-```bash
-cd backend
-
-# Generate database migrations
-npm run db:generate
-
-# Push schema to database
-npm run db:push
-
-# Open Drizzle Studio (database GUI)
-npm run db:studio
-```
-
 ## Production Build
 
 ### Backend
@@ -342,7 +322,6 @@ npm run preview
 ### Backend (.env)
 ```env
 PORT=4000
-DATABASE_URL=postgresql://user:password@localhost:5432/crypto_analytics
 NODE_ENV=development
 COINGECKO_API_KEY=  # Optional, for rate limit increases
 ```
@@ -407,9 +386,7 @@ The CoinGecko free API has rate limits:
 ## Troubleshooting
 
 ### Backend won't start
-- Ensure PostgreSQL is running (if using database)
 - Check if port 4000 is available
-- Verify DATABASE_URL in .env
 
 ### Frontend API errors
 - Ensure backend is running on port 4000
