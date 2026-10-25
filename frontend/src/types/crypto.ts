@@ -76,3 +76,13 @@ export interface VolatilityModel {
   conditionalVolatility: VolatilityPoint[];
   forecast: VolatilityForecast[];
 }
+
+export interface RiskSummary {
+  coinId: string;
+  asOf: string | null;
+  observations: number;
+  missingDays: number;
+  realizedVolatility: { windowDays: number; annualizedVolatility: number | null }[];
+  ewmaVolatility: number | null;
+  returnDistribution: { skewness: number; excessKurtosis: number } | null;
+}

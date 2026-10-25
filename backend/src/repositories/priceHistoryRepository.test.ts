@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { savePricePoint } from './priceHistoryRepository';
+import { getDailyPrices, savePricePoint } from './priceHistoryRepository';
 import { dynamodb } from '../db/dynamodb';
 
 vi.mock('../db/dynamodb', () => ({ dynamodb: { send: vi.fn() } }));
@@ -39,5 +39,29 @@ describe('savePricePoint', () => {
   it('rethrows other errors', async () => {
     vi.mocked(dynamodb.send).mockRejectedValue(new Error('throttled') as never);
     await expect(savePricePoint(point)).rejects.toThrow('throttled');
+  });
+});
+
+describe('getDailyPrices', () => {
+  beforeEach(() => {
+    vi.mocked(dynamodb.send).mockReset();
+  });
+
+  it('queries one coin from a date onwards and follows pagination', async () => {
+    vi.mocked(dynamodb.send)
+      .mockResolvedValueOnce({
+        Items: [{ date: '2026-10-20', timestamp: 1, price: 10 }],
+        LastEvaluatedKey: { coinId: 'bitcoin', date: '2026-10-20' },
+      } as never)
+      .mockResolvedValueOnce({ Items: [{ date: '2026-10-21', timestamp: 2, price: 11 }] } as never);
+
+    const prices = await getDailyPrices('bitcoin', '2025-10-22');
+
+    expect(prices.map(p => p.date)).toEqual(['2026-10-20', '2026-10-21']);
+    const first = vi.mocked(dynamodb.send).mock.calls[0][0].input as any;
+    expect(first.KeyConditionExpression).toBe('#coinId = :coinId AND #date >= :fromDate');
+    expect(first.ExpressionAttributeValues).toEqual({ ':coinId': 'bitcoin', ':fromDate': '2025-10-22' });
+    const second = vi.mocked(dynamodb.send).mock.calls[1][0].input as any;
+    expect(second.ExclusiveStartKey).toEqual({ coinId: 'bitcoin', date: '2026-10-20' });
   });
 });

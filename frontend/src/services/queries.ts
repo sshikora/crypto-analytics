@@ -119,6 +119,26 @@ export const GET_VOLATILITY_MODEL = gql`
   }
 `;
 
+export const GET_RISK_SUMMARY = gql`
+  query GetRiskSummary($coinId: String!) {
+    riskSummary(coinId: $coinId) {
+      coinId
+      asOf
+      observations
+      missingDays
+      realizedVolatility {
+        windowDays
+        annualizedVolatility
+      }
+      ewmaVolatility
+      returnDistribution {
+        skewness
+        excessKurtosis
+      }
+    }
+  }
+`;
+
 export const REFRESH_CRYPTO_DATA = gql`
   mutation RefreshCryptoData($symbol: String!) {
     refreshCryptoData(symbol: $symbol) {

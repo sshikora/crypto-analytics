@@ -70,6 +70,26 @@ export const typeDefs = `
     forecast: [VolatilityForecast!]!
   }
 
+  type RealizedVolatility {
+    windowDays: Int!
+    annualizedVolatility: Float
+  }
+
+  type ReturnDistribution {
+    skewness: Float!
+    excessKurtosis: Float!
+  }
+
+  type RiskSummary {
+    coinId: String!
+    asOf: String
+    observations: Int!
+    missingDays: Int!
+    realizedVolatility: [RealizedVolatility!]!
+    ewmaVolatility: Float
+    returnDistribution: ReturnDistribution
+  }
+
   enum TimeRange {
     DAY
     WEEK
@@ -181,6 +201,7 @@ export const typeDefs = `
     marketStats(symbol: String!): MarketStats
     topCryptocurrencies(limit: Int): [Cryptocurrency!]!
     volatilityModel(symbol: String!, timeRange: TimeRange!): VolatilityModel
+    riskSummary(coinId: String!): RiskSummary!
     userPreferences(userId: String!): UserPreferences
 
     # Notification Queries
