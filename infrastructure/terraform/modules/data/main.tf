@@ -64,3 +64,54 @@ resource "aws_iam_policy" "price_history_write" {
     ]
   })
 }
+
+# Each coin's risk summary per price date, written nightly by the compute-metrics job. Every row can be
+# recomputed from the price history, so there is no point-in-time recovery or deletion protection.
+resource "aws_dynamodb_table" "coin_metrics" {
+  name         = "${local.prefix}-coin-metrics"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "coinId"
+  range_key    = "date"
+
+  attribute {
+    name = "coinId"
+    type = "S"
+  }
+
+  attribute {
+    name = "date"
+    type = "S"
+  }
+}
+
+resource "aws_iam_policy" "coin_metrics_read" {
+  name        = "${local.prefix}-coin-metrics-read"
+  description = "Read the coin metrics table"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:GetItem", "dynamodb:Query"]
+        Resource = [aws_dynamodb_table.coin_metrics.arn]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_policy" "coin_metrics_write" {
+  name        = "${local.prefix}-coin-metrics-write"
+  description = "Read and write the coin metrics table"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:PutItem"]
+        Resource = [aws_dynamodb_table.coin_metrics.arn]
+      }
+    ]
+  })
+}

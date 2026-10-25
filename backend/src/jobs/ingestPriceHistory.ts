@@ -1,5 +1,6 @@
 import { coinGeckoService, CoinGeckoMarketData, CoinGeckoPriceHistory } from '../services/coinGeckoService';
 import { DailyPricePoint, savePricePoint } from '../repositories/priceHistoryRepository';
+import { sleep, withRetry } from './retry';
 
 const DAY_MS = 86_400_000;
 const WRITE_CONCURRENCY = 10;
@@ -18,19 +19,6 @@ export interface IngestSummary {
   written: number;
   existing: number;
   failed: string[];
-}
-
-const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
-
-async function withRetry<T>(fn: () => Promise<T>, delaysMs: number[]): Promise<T> {
-  for (let attempt = 0; ; attempt++) {
-    try {
-      return await fn();
-    } catch (error) {
-      if (attempt >= delaysMs.length) throw error;
-      await sleep(delaysMs[attempt]);
-    }
-  }
 }
 
 // CoinGecko's daily series holds midnight-UTC snapshots plus one live point for the current moment; only snapshots are kept.

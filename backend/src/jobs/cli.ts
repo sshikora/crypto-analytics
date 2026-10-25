@@ -1,6 +1,7 @@
 import * as dotenv from 'dotenv';
 dotenv.config();
 
+import { computeMetrics } from './computeMetrics';
 import { ingestPriceHistory } from './ingestPriceHistory';
 
 // A run with more failed coins than this is treated as a failed job.
@@ -29,8 +30,14 @@ async function main(): Promise<number> {
       console.log(JSON.stringify({ event: succeeded ? 'job_succeeded' : 'job_failed', job, days, ...summary }));
       return succeeded ? 0 : 1;
     }
+    case 'compute-metrics': {
+      const summary = await computeMetrics();
+      const succeeded = summary.failed.length <= summary.coins * MAX_FAILED_FRACTION;
+      console.log(JSON.stringify({ event: succeeded ? 'job_succeeded' : 'job_failed', job, ...summary }));
+      return succeeded ? 0 : 1;
+    }
     default:
-      console.error(`Unknown job "${job ?? ''}". Available: ingest-prices`);
+      console.error(`Unknown job "${job ?? ''}". Available: ingest-prices, compute-metrics`);
       return 2;
   }
 }
