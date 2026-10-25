@@ -7,14 +7,23 @@ import { fitHar, harForecastVariance, HarFit } from '../models/har';
 import { LinearDependenceError } from '../models/linearRegression';
 import { ewmaVariance, rollingVolatility } from '../models/realizedVolatility';
 import { logReturns, moments, periodsPerYear, simpleReturns } from '../models/returns';
-import { fitStudentT, historicalTailRisk, normalTailRisk, studentTTailRisk, VarMethod } from '../models/valueAtRisk';
+import {
+  filteredHistoricalTailRisk,
+  fitFilteredModel,
+  fitStudentT,
+  historicalTailRisk,
+  normalTailRisk,
+  studentTTailRisk,
+  TailRisk,
+  VarMethod,
+} from '../models/valueAtRisk';
 import { conditionalCoverageTest, christoffersenTest, kupiecTest, varExceptions } from '../models/varBacktest';
 
 const cache = new NodeCache({ stdTTL: 3600 });
 
 // Stored summaries carry the version that computed them. Bump this whenever the summary's fields or definitions
 // change, so the API recomputes instead of serving rows in the old shape until the nightly job rewrites them.
-export const RISK_SUMMARY_VERSION = 2;
+export const RISK_SUMMARY_VERSION = 3;
 
 const MS_PER_DAY = 86_400_000;
 const HISTORY_DAYS = 365;
@@ -25,7 +34,7 @@ const FORECAST_HORIZONS = [1, 7, 30];
 const MIN_HAR_RETURNS = 120;
 const VAR_WINDOW = 180;
 const VAR_CONFIDENCE = [0.95, 0.99];
-const VAR_METHODS: VarMethod[] = ['historical', 'normal', 'studentT'];
+const VAR_METHODS: VarMethod[] = ['historical', 'normal', 'studentT', 'filteredHistorical'];
 const MIN_BACKTEST_DAYS = 60;
 const BACKTEST_SIGNIFICANCE = 0.05;
 const MIN_GARCH_RETURNS = 120;
@@ -127,8 +136,8 @@ function forecastVolatility(returns: number[], annualize: (perPeriod: number) =>
   };
 }
 
-// One-day VaR and expected shortfall on the last 180 simple returns, each method backtested out of sample on
-// every earlier-fitted day. Null when there are too few days to backtest or the price was flat for a whole
+// One-day VaR and expected shortfall on the last 180 simple returns by four methods, each backtested out of sample
+// on every earlier-fitted day. Null when there are too few days to backtest or the price was flat for a whole
 // window, where every method's VaR is zero and the Student-t likelihood has no maximum.
 function valueAtRisk(prices: StoredPrice[]): ValueAtRiskSummary | null {
   const returns = simpleReturns(prices.map(p => p.price));
@@ -137,6 +146,13 @@ function valueAtRisk(prices: StoredPrice[]): ValueAtRiskSummary | null {
 
   const latest = returns.slice(-VAR_WINDOW);
   const fit = fitStudentT(latest);
+  const filtered = fitFilteredModel(latest);
+  const tailRisk: Record<VarMethod, (alpha: number) => TailRisk> = {
+    historical: alpha => historicalTailRisk(latest, alpha),
+    normal: alpha => normalTailRisk(latest, alpha),
+    studentT: alpha => studentTTailRisk(fit, alpha),
+    filteredHistorical: alpha => filteredHistoricalTailRisk(filtered, alpha),
+  };
   const alphas = VAR_CONFIDENCE.map(c => 1 - c);
   const hitsByMethod = Object.fromEntries(
     VAR_METHODS.map(method => [method, varExceptions(returns, alphas, VAR_WINDOW, method)])
@@ -150,10 +166,7 @@ function valueAtRisk(prices: StoredPrice[]): ValueAtRiskSummary | null {
       return {
         confidence,
         methods: VAR_METHODS.map(method => {
-          const risk =
-            method === 'studentT'
-              ? studentTTailRisk(fit, alpha)
-              : (method === 'historical' ? historicalTailRisk : normalTailRisk)(latest, alpha);
+          const risk = tailRisk[method](alpha);
           const hits = hitsByMethod[method][i];
           const kupiec = kupiecTest(hits, alpha);
           const conditionalCoverage = conditionalCoverageTest(hits, alpha);

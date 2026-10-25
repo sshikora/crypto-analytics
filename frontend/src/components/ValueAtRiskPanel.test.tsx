@@ -39,6 +39,7 @@ const summary: ValueAtRiskSummary = {
         method('historical', 0.0267, 0.037, 6, true),
         method('normal', 0.0313, 0.0393, 4, false),
         method('studentT', 0.0296, 0.0471, 5, true),
+        method('filteredHistorical', 0.0273, 0.0336, 8, true),
       ],
     },
     {
@@ -76,6 +77,15 @@ describe('ValueAtRiskPanel', () => {
     expect(within(card(/^Historical$/)).getByText('Expected shortfall $370')).toBeInTheDocument();
     expect(within(card(/^Student-t \(3\.2 degrees of freedom\)$/)).getByText('$296')).toBeInTheDocument();
     expect(screen.getByText(/1 day in 20/)).toBeInTheDocument();
+  });
+
+  it('includes the GARCH-filtered method and explains it', () => {
+    renderPanel();
+
+    expect(within(card(/^GARCH-filtered$/)).getByText('$273')).toBeInTheDocument();
+    expect(within(card(/^GARCH-filtered$/)).getByText('Expected shortfall $336')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'About GARCH-filtered' }));
+    expect(screen.getByRole('dialog')).toHaveTextContent('Filtered historical simulation with GARCH(1,1)');
   });
 
   it('shows each backtest result', () => {

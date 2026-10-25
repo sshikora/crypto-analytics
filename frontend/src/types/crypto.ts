@@ -98,7 +98,7 @@ export interface GarchSummary {
   normalQq: { theoretical: number; sample: number }[];
 }
 
-export type VarMethod = 'historical' | 'normal' | 'studentT';
+export type VarMethod = 'historical' | 'normal' | 'studentT' | 'filteredHistorical';
 
 export interface VarMethodResult {
   method: VarMethod;

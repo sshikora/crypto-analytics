@@ -35,15 +35,21 @@ def main() -> None:
     if fit.log_likelihood < scipy_ll - 1e-9:
         raise SystemExit(f"polished fit {fit.log_likelihood} is below scipy's {scipy_ll}")
 
+    filtered = var.fit_filtered(latest)
+    fitted_models = {name: {} for name in var.METHODS}
+
     levels = []
     for confidence in CONFIDENCE:
         alpha = 1 - confidence
         methods = {}
         for name in var.METHODS:
-            value_at_risk, expected_shortfall = (
-                var.student_t(latest, alpha, fit) if name == "studentT" else var.METHODS[name](latest, alpha)
-            )
-            hits = var.exceptions(r, name, alpha, WINDOW)
+            if name == "studentT":
+                value_at_risk, expected_shortfall = var.student_t(latest, alpha, fit)
+            elif name == "filteredHistorical":
+                value_at_risk, expected_shortfall = var.filtered_historical(latest, alpha, filtered)
+            else:
+                value_at_risk, expected_shortfall = var.METHODS[name](latest, alpha)
+            hits = var.exceptions(r, name, alpha, WINDOW, fitted_models[name])
             lr_uc, p_uc = var.kupiec(hits, alpha)
             lr_ind, p_ind = var.christoffersen(hits)
             methods[name] = {
@@ -70,6 +76,7 @@ def main() -> None:
         "prices": [float(p) for p in prices],
         "reference": {
             "studentT": {"location": fit.location, "scale": fit.scale, "dof": fit.dof, "logLikelihood": fit.log_likelihood},
+            "filteredHistorical": {"mu": filtered.mu, "sigma": filtered.sigma, "residuals": [float(v) for v in filtered.z]},
             "levels": levels,
         },
         "scipyFit": {"location": float(scipy_loc), "scale": float(scipy_scale), "dof": float(scipy_dof), "logLikelihood": scipy_ll},
