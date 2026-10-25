@@ -6,6 +6,12 @@ on:
       - master
   workflow_dispatch:
 
+# One deploy at a time. A new run waits for the one in progress and replaces any run already waiting,
+# so the most recent merge is what ends up live.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
 env:
   AWS_REGION: us-east-1
   ECR_BACKEND_REPO: crypto-analytics-backend
