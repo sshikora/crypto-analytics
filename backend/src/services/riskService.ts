@@ -1,6 +1,8 @@
 import NodeCache from 'node-cache';
 import { getLatestRiskSummary } from '../repositories/coinMetricsRepository';
 import { getDailyPrices, StoredPrice } from '../repositories/priceHistoryRepository';
+import { fitGarch11, garchForecastVariance } from '../models/garch';
+import { informationCriteria, ljungBox, normalQqPoints, standardizedResiduals, TestResult } from '../models/garchDiagnostics';
 import { fitHar, harForecastVariance, HarFit } from '../models/har';
 import { LinearDependenceError } from '../models/linearRegression';
 import { ewmaVariance, rollingVolatility } from '../models/realizedVolatility';
@@ -12,7 +14,7 @@ const cache = new NodeCache({ stdTTL: 3600 });
 
 // Stored summaries carry the version that computed them. Bump this whenever the summary's fields or definitions
 // change, so the API recomputes instead of serving rows in the old shape until the nightly job rewrites them.
-export const RISK_SUMMARY_VERSION = 1;
+export const RISK_SUMMARY_VERSION = 2;
 
 const MS_PER_DAY = 86_400_000;
 const HISTORY_DAYS = 365;
@@ -26,6 +28,8 @@ const VAR_CONFIDENCE = [0.95, 0.99];
 const VAR_METHODS: VarMethod[] = ['historical', 'normal', 'studentT'];
 const MIN_BACKTEST_DAYS = 60;
 const BACKTEST_SIGNIFICANCE = 0.05;
+const MIN_GARCH_RETURNS = 120;
+const LJUNG_BOX_LAGS = 10;
 const COIN_ID_PATTERN = /^[a-z0-9-]{1,100}$/;
 
 export interface RealizedVolatility {
@@ -60,6 +64,26 @@ export interface ValueAtRiskSummary {
   }[];
 }
 
+export interface GarchSummary {
+  omega: number;
+  alpha: number;
+  beta: number;
+  persistence: number;
+  logLikelihood: number;
+  aic: number;
+  bic: number;
+  observations: number;
+  halfLifeDays: number;
+  currentVolatility: number;
+  longRunVolatility: number;
+  conditionalVolatility: { date: string; annualizedVolatility: number }[];
+  forecast: { days: number; annualizedVolatility: number }[];
+  ljungBoxResiduals: TestResult;
+  ljungBoxSquaredResiduals: TestResult;
+  standardizedExcessKurtosis: number;
+  normalQq: { theoretical: number; sample: number }[];
+}
+
 export interface RiskSummary {
   coinId: string;
   asOf: string | null;
@@ -70,6 +94,7 @@ export interface RiskSummary {
   returnDistribution: { skewness: number; excessKurtosis: number } | null;
   volatilityForecast: VolatilityForecast | null;
   valueAtRisk: ValueAtRiskSummary | null;
+  garch: GarchSummary | null;
 }
 
 // Volatilities are annualized percentages, like the GARCH model's. Windows count stored observations,
@@ -151,6 +176,44 @@ function valueAtRisk(prices: StoredPrice[]): ValueAtRiskSummary | null {
   };
 }
 
+// GARCH(1,1) on daily log returns with its diagnostics. Null with too little history, or for a price that never
+// moved, where the sample variance is zero and the likelihood is undefined.
+function garchSummary(prices: StoredPrice[]): GarchSummary | null {
+  const returns = logReturns(prices.map(p => p.price));
+  if (returns.length < MIN_GARCH_RETURNS || moments(returns).standardDeviation === 0) return null;
+
+  const fit = fitGarch11(returns);
+  const ppy = periodsPerYear(prices.map(p => p.timestamp));
+  const annualize = (variance: number) => Math.sqrt(variance * ppy) * 100;
+  const z = standardizedResiduals(returns, fit);
+  const horizon = Math.max(...FORECAST_HORIZONS);
+  const daily = Array.from({ length: horizon }, (_, k) => garchForecastVariance(fit, k + 1));
+
+  return {
+    omega: fit.omega,
+    alpha: fit.alpha,
+    beta: fit.beta,
+    persistence: fit.persistence,
+    logLikelihood: fit.logLikelihood,
+    ...informationCriteria(fit.logLikelihood, z.length),
+    observations: z.length,
+    // ln(0.5) / ln(persistence) is in data intervals; scale to days in case of gaps
+    halfLifeDays: (Math.log(0.5) / Math.log(fit.persistence)) * (365.25 / ppy),
+    currentVolatility: annualize(fit.variance[fit.variance.length - 1]),
+    longRunVolatility: annualize(fit.longRunVariance),
+    // fit.variance[i] belongs to returns[i + 1], the change ending at prices[i + 2]
+    conditionalVolatility: fit.variance.map((h, i) => ({ date: prices[i + 2].date, annualizedVolatility: annualize(h) })),
+    forecast: FORECAST_HORIZONS.map(days => ({
+      days,
+      annualizedVolatility: annualize(daily.slice(0, days).reduce((sum, v) => sum + v, 0) / days),
+    })),
+    ljungBoxResiduals: ljungBox(z, LJUNG_BOX_LAGS),
+    ljungBoxSquaredResiduals: ljungBox(z.map(v => v * v), LJUNG_BOX_LAGS),
+    standardizedExcessKurtosis: moments(z).excessKurtosis,
+    normalQq: normalQqPoints(z),
+  };
+}
+
 export function summarizeRisk(coinId: string, prices: StoredPrice[]): RiskSummary {
   const returns = logReturns(prices.map(p => p.price));
   const annualize = (perPeriod: number) =>
@@ -180,6 +243,7 @@ export function summarizeRisk(coinId: string, prices: StoredPrice[]): RiskSummar
     returnDistribution: m && { skewness: m.skewness, excessKurtosis: m.excessKurtosis },
     volatilityForecast,
     valueAtRisk: valueAtRisk(prices),
+    garch: garchSummary(prices),
   };
 }
 

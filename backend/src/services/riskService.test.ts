@@ -34,6 +34,17 @@ const varFixture = loadFixture<{
     }[];
   };
 }>('var');
+const garchFixture = JSON.parse(
+  readFileSync(join(__dirname, '..', 'test', 'fixtures', 'garch', 'btc_daily_diagnostics.json'), 'utf8')
+) as {
+  reference: {
+    aic: number;
+    halfLifeDays: number;
+    observations: number;
+    ljungBoxResiduals: { pValue: number };
+    forecast: { days: number; annualizedVolatility: number }[];
+  };
+};
 const volFixture = loadFixture<{
   reference: { rollingVolatility: Record<string, (number | null)[]>; ewmaVariance: Record<string, number[]> };
 }>('realized_vol');
@@ -110,6 +121,31 @@ describe('summarizeRisk on the validated BTC sample', () => {
     expect(v.levels[0].methods.find(m => m.method === 'normal')!.backtest.passes).toBe(false);
   });
 
+  it('fits GARCH(1,1) to the daily returns with diagnostics', () => {
+    const g = summarizeRisk('bitcoin', btcPrices).garch!;
+    const ref = garchFixture.reference;
+
+    expect(g.observations).toBe(ref.observations);
+    expect(Math.abs(g.aic - ref.aic)).toBeLessThan(2e-4);
+    expect(relativeError(g.halfLifeDays, ref.halfLifeDays)).toBeLessThan(1e-2);
+    expect(Math.abs(g.ljungBoxResiduals.pValue - ref.ljungBoxResiduals.pValue)).toBeLessThan(1e-3);
+    g.forecast.forEach((f, i) => {
+      expect(f.days).toBe(ref.forecast[i].days);
+      expect(relativeError(f.annualizedVolatility, ref.forecast[i].annualizedVolatility)).toBeLessThan(1e-3);
+    });
+    // One point per likelihood term, dated by the close each return ends on
+    expect(g.conditionalVolatility).toHaveLength(ref.observations);
+    expect(g.conditionalVolatility[0].date).toBe(btcPrices[2].date);
+    expect(g.conditionalVolatility[g.conditionalVolatility.length - 1].date).toBe(btcPrices[btcPrices.length - 1].date);
+    expect(g.normalQq).toHaveLength(ref.observations);
+  });
+
+  it('needs 120 returns and a price that moves to fit GARCH', () => {
+    expect(summarizeRisk('btc-short', btcPrices.slice(-120)).garch).toBeNull();
+    expect(summarizeRisk('btc-enough', btcPrices.slice(-121)).garch).not.toBeNull();
+    expect(summarizeRisk('flat', daily(new Array(200).fill(1))).garch).toBeNull();
+  });
+
   it('reports the return distribution, date and coverage', () => {
     const expected = returnsFixture.reference.logReturnMoments;
     expect(relativeError(summary.returnDistribution!.skewness, expected.skewness)).toBeLessThan(1e-10);
@@ -175,6 +211,7 @@ describe('summarizeRisk', () => {
       returnDistribution: null,
       volatilityForecast: null,
       valueAtRisk: null,
+      garch: null,
     });
   });
 });
