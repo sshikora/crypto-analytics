@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ingestPriceHistory, toDailyPoints } from './ingestPriceHistory';
 import { coinGeckoService } from '../services/coinGeckoService';
-import { savePricePoint } from '../repositories/priceHistoryRepository';
+import { getEarliestStoredDate, savePricePoint } from '../repositories/priceHistoryRepository';
 
 vi.mock('../services/coinGeckoService', () => ({
   coinGeckoService: { getMarketData: vi.fn(), getDailyHistory: vi.fn() },
 }));
-vi.mock('../repositories/priceHistoryRepository', () => ({ savePricePoint: vi.fn() }));
+vi.mock('../repositories/priceHistoryRepository', () => ({ savePricePoint: vi.fn(), getEarliestStoredDate: vi.fn() }));
 
 const DAY = 86_400_000;
 const MIDNIGHT = Date.UTC(2026, 9, 21);
@@ -60,6 +60,8 @@ describe('ingestPriceHistory', () => {
     vi.mocked(coinGeckoService.getMarketData).mockResolvedValue(coins as any);
     vi.mocked(coinGeckoService.getDailyHistory).mockResolvedValue(history([MIDNIGHT - DAY, MIDNIGHT]));
     vi.mocked(savePricePoint).mockResolvedValue('written');
+    // Established coins hold a year of history from the original backfill
+    vi.mocked(getEarliestStoredDate).mockResolvedValue('2025-10-20');
   });
 
   const run = (extra = {}) => ingestPriceHistory({ days: 3, delayMs: 0, retryDelaysMs: [0], now: NOW, ...extra });
@@ -70,7 +72,40 @@ describe('ingestPriceHistory', () => {
     const summary = await run();
 
     expect(coinGeckoService.getDailyHistory).toHaveBeenCalledWith('bitcoin', 3);
-    expect(summary).toEqual({ coins: 3, written: 5, existing: 1, failed: [] });
+    expect(summary).toEqual({ coins: 3, written: 5, existing: 1, failed: [], backfilled: [] });
+  });
+
+  it('fetches a whole year for a coin with no stored history', async () => {
+    vi.mocked(getEarliestStoredDate).mockImplementation(async (coinId) => (coinId === 'solana' ? null : '2025-10-20'));
+
+    const summary = await run();
+
+    expect(coinGeckoService.getDailyHistory).toHaveBeenCalledWith('bitcoin', 3);
+    expect(coinGeckoService.getDailyHistory).toHaveBeenCalledWith('solana', 365);
+    expect(summary.backfilled).toEqual(['solana']);
+  });
+
+  it('keeps fetching a whole year for a coin younger than the window', async () => {
+    // NOW is 2026-10-21, so the window starts 2025-10-22
+    vi.mocked(getEarliestStoredDate).mockImplementation(async (coinId) => (coinId === 'ethereum' ? '2026-09-30' : '2025-10-22'));
+
+    const summary = await run();
+
+    expect(coinGeckoService.getDailyHistory).toHaveBeenCalledWith('ethereum', 365);
+    expect(coinGeckoService.getDailyHistory).toHaveBeenCalledWith('bitcoin', 3);
+    expect(summary.backfilled).toEqual(['ethereum']);
+  });
+
+  it('skips the check on a full-window run', async () => {
+    const summary = await run({ days: 365 });
+    expect(getEarliestStoredDate).not.toHaveBeenCalled();
+    expect(summary.backfilled).toEqual([]);
+  });
+
+  it('records a coin as failed when the history check throws', async () => {
+    vi.mocked(getEarliestStoredDate).mockRejectedValueOnce(new Error('throttled'));
+    const summary = await run();
+    expect(summary.failed).toEqual(['bitcoin']);
   });
 
   it('limits the universe size', async () => {

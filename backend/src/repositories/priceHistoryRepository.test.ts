@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getDailyPrices, savePricePoint } from './priceHistoryRepository';
+import { getDailyPrices, getEarliestStoredDate, savePricePoint } from './priceHistoryRepository';
 import { dynamodb } from '../db/dynamodb';
 
 vi.mock('../db/dynamodb', () => ({ dynamodb: { send: vi.fn() } }));
@@ -63,5 +63,27 @@ describe('getDailyPrices', () => {
     expect(first.ExpressionAttributeValues).toEqual({ ':coinId': 'bitcoin', ':fromDate': '2025-10-22' });
     const second = vi.mocked(dynamodb.send).mock.calls[1][0].input as any;
     expect(second.ExclusiveStartKey).toEqual({ coinId: 'bitcoin', date: '2026-10-20' });
+  });
+});
+
+describe('getEarliestStoredDate', () => {
+  beforeEach(() => {
+    vi.mocked(dynamodb.send).mockReset();
+  });
+
+  it('reads the first row for the coin, oldest first', async () => {
+    vi.mocked(dynamodb.send).mockResolvedValue({ Items: [{ date: '2025-10-23' }] } as never);
+
+    await expect(getEarliestStoredDate('bitcoin')).resolves.toBe('2025-10-23');
+
+    const input = vi.mocked(dynamodb.send).mock.calls[0][0].input as any;
+    expect(input.ScanIndexForward).toBe(true);
+    expect(input.Limit).toBe(1);
+    expect(input.ExpressionAttributeValues).toEqual({ ':coinId': 'bitcoin' });
+  });
+
+  it('returns null for a coin with nothing stored', async () => {
+    vi.mocked(dynamodb.send).mockResolvedValue({ Items: [] } as never);
+    await expect(getEarliestStoredDate('pyth-network')).resolves.toBeNull();
   });
 });

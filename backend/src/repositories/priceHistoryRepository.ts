@@ -91,3 +91,19 @@ export async function getDailyPrices(coinId: string, fromDate: string): Promise<
 
   return prices;
 }
+
+// The oldest stored date for a coin, or null when nothing is stored yet
+export async function getEarliestStoredDate(coinId: string): Promise<string | null> {
+  const result = await dynamodb.send(
+    new QueryCommand({
+      TableName: tableName(),
+      KeyConditionExpression: '#coinId = :coinId',
+      ProjectionExpression: '#date',
+      ExpressionAttributeNames: { '#coinId': 'coinId', '#date': 'date' },
+      ExpressionAttributeValues: { ':coinId': coinId },
+      ScanIndexForward: true,
+      Limit: 1,
+    })
+  );
+  return (result.Items?.[0]?.date as string | undefined) ?? null;
+}
