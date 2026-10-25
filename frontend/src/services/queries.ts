@@ -96,29 +96,6 @@ export const GET_MARKET_STATS = gql`
   }
 `;
 
-export const GET_VOLATILITY_MODEL = gql`
-  query GetVolatilityModel($symbol: String!, $timeRange: TimeRange!) {
-    volatilityModel(symbol: $symbol, timeRange: $timeRange) {
-      symbol
-      modelType
-      omega
-      alpha
-      beta
-      persistence
-      longRunVolatility
-      currentVolatility
-      conditionalVolatility {
-        timestamp
-        annualizedVolatility
-      }
-      forecast {
-        horizon
-        annualizedVolatility
-      }
-    }
-  }
-`;
-
 export const GET_RISK_SUMMARY = gql`
   query GetRiskSummary($coinId: String!) {
     riskSummary(coinId: $coinId) {
@@ -148,6 +125,40 @@ export const GET_RISK_SUMMARY = gql`
         horizons {
           days
           annualizedVolatility
+        }
+      }
+      garch {
+        omega
+        alpha
+        beta
+        persistence
+        logLikelihood
+        aic
+        bic
+        observations
+        halfLifeDays
+        currentVolatility
+        longRunVolatility
+        conditionalVolatility {
+          date
+          annualizedVolatility
+        }
+        forecast {
+          days
+          annualizedVolatility
+        }
+        ljungBoxResiduals {
+          statistic
+          pValue
+        }
+        ljungBoxSquaredResiduals {
+          statistic
+          pValue
+        }
+        standardizedExcessKurtosis
+        normalQq {
+          theoretical
+          sample
         }
       }
       valueAtRisk {

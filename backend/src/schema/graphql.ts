@@ -47,29 +47,6 @@ export const typeDefs = `
     data: [PricePoint!]!
   }
 
-  type VolatilityPoint {
-    timestamp: String!
-    annualizedVolatility: Float!
-  }
-
-  type VolatilityForecast {
-    horizon: Int!
-    annualizedVolatility: Float!
-  }
-
-  type VolatilityModel {
-    symbol: String!
-    modelType: String!
-    omega: Float!
-    alpha: Float!
-    beta: Float!
-    persistence: Float!
-    longRunVolatility: Float!
-    currentVolatility: Float!
-    conditionalVolatility: [VolatilityPoint!]!
-    forecast: [VolatilityForecast!]!
-  }
-
   type RealizedVolatility {
     windowDays: Int!
     annualizedVolatility: Float
@@ -128,6 +105,41 @@ export const typeDefs = `
     levels: [VarLevel!]!
   }
 
+  type TestResult {
+    statistic: Float!
+    pValue: Float!
+  }
+
+  type DatedVolatility {
+    date: String!
+    annualizedVolatility: Float!
+  }
+
+  type QqPoint {
+    theoretical: Float!
+    sample: Float!
+  }
+
+  type GarchSummary {
+    omega: Float!
+    alpha: Float!
+    beta: Float!
+    persistence: Float!
+    logLikelihood: Float!
+    aic: Float!
+    bic: Float!
+    observations: Int!
+    halfLifeDays: Float!
+    currentVolatility: Float!
+    longRunVolatility: Float!
+    conditionalVolatility: [DatedVolatility!]!
+    forecast: [ForecastHorizon!]!
+    ljungBoxResiduals: TestResult!
+    ljungBoxSquaredResiduals: TestResult!
+    standardizedExcessKurtosis: Float!
+    normalQq: [QqPoint!]!
+  }
+
   type RiskSummary {
     coinId: String!
     asOf: String
@@ -138,6 +150,7 @@ export const typeDefs = `
     returnDistribution: ReturnDistribution
     volatilityForecast: HarForecast
     valueAtRisk: ValueAtRisk
+    garch: GarchSummary
   }
 
   enum TimeRange {
@@ -250,7 +263,6 @@ export const typeDefs = `
     priceHistory(symbol: String!, timeRange: TimeRange!): PriceHistory
     marketStats(symbol: String!): MarketStats
     topCryptocurrencies(limit: Int): [Cryptocurrency!]!
-    volatilityModel(symbol: String!, timeRange: TimeRange!): VolatilityModel
     riskSummary(coinId: String!): RiskSummary!
     userPreferences(userId: String!): UserPreferences
 

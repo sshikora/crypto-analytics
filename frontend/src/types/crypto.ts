@@ -54,29 +54,6 @@ export enum TimeRange {
   ALL = 'ALL',
 }
 
-export interface VolatilityPoint {
-  timestamp: string;
-  annualizedVolatility: number;
-}
-
-export interface VolatilityForecast {
-  horizon: number;
-  annualizedVolatility: number;
-}
-
-export interface VolatilityModel {
-  symbol: string;
-  modelType: string;
-  omega: number;
-  alpha: number;
-  beta: number;
-  persistence: number;
-  longRunVolatility: number;
-  currentVolatility: number;
-  conditionalVolatility: VolatilityPoint[];
-  forecast: VolatilityForecast[];
-}
-
 export interface RiskSummary {
   coinId: string;
   asOf: string | null;
@@ -93,6 +70,32 @@ export interface RiskSummary {
     horizons: { days: number; annualizedVolatility: number }[];
   } | null;
   valueAtRisk: ValueAtRiskSummary | null;
+  garch: GarchSummary | null;
+}
+
+export interface TestResult {
+  statistic: number;
+  pValue: number;
+}
+
+export interface GarchSummary {
+  omega: number;
+  alpha: number;
+  beta: number;
+  persistence: number;
+  logLikelihood: number;
+  aic: number;
+  bic: number;
+  observations: number;
+  halfLifeDays: number;
+  currentVolatility: number;
+  longRunVolatility: number;
+  conditionalVolatility: { date: string; annualizedVolatility: number }[];
+  forecast: { days: number; annualizedVolatility: number }[];
+  ljungBoxResiduals: TestResult;
+  ljungBoxSquaredResiduals: TestResult;
+  standardizedExcessKurtosis: number;
+  normalQq: { theoretical: number; sample: number }[];
 }
 
 export type VarMethod = 'historical' | 'normal' | 'studentT';

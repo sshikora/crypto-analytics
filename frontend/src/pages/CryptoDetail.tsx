@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@apollo/client';
 import { PriceChart } from '../components/PriceChart';
 import { MovingAverageChart } from '../components/MovingAverageChart';
-import { VolatilityChart } from '../components/VolatilityChart';
+import { GarchPanel } from '../components/GarchPanel';
 import { StatCard } from '../components/StatCard';
 import { TimeRangeSelector } from '../components/TimeRangeSelector';
 import { LoadingSpinner } from '../components/LoadingSpinner';
@@ -303,9 +303,15 @@ export const CryptoDetail: React.FC = () => {
               <RiskSummaryPanel summary={riskData.riskSummary} />
             ) : null}
           </div>
-          <div className="card">
-            <VolatilityChart symbol={crypto.symbol} />
-          </div>
+          {riskData?.riskSummary?.garch && (
+            <div className="card">
+              <GarchPanel
+                garch={riskData.riskSummary.garch}
+                asOf={riskData.riskSummary.asOf}
+                closes={riskData.riskSummary.observations}
+              />
+            </div>
+          )}
         </div>
       )}
       </div>
