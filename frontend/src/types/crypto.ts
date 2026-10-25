@@ -85,4 +85,11 @@ export interface RiskSummary {
   realizedVolatility: { windowDays: number; annualizedVolatility: number | null }[];
   ewmaVolatility: number | null;
   returnDistribution: { skewness: number; excessKurtosis: number } | null;
+  volatilityForecast: {
+    model: string;
+    coefficients: { intercept: number; daily: number; weekly: number; monthly: number };
+    rSquared: number;
+    observations: number;
+    horizons: { days: number; annualizedVolatility: number }[];
+  } | null;
 }

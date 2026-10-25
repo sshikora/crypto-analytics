@@ -135,6 +135,21 @@ export const GET_RISK_SUMMARY = gql`
         skewness
         excessKurtosis
       }
+      volatilityForecast {
+        model
+        coefficients {
+          intercept
+          daily
+          weekly
+          monthly
+        }
+        rSquared
+        observations
+        horizons {
+          days
+          annualizedVolatility
+        }
+      }
     }
   }
 `;
