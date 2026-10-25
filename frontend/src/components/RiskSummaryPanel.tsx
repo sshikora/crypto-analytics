@@ -57,6 +57,18 @@ export const RiskSummaryPanel: React.FC<RiskSummaryPanelProps> = ({ summary }) =
   };
 
   const distribution = summary.returnDistribution;
+  const forecast = summary.volatilityForecast;
+
+  const forecastInfo: MetricInfo = {
+    model: 'HAR-RV (Corsi 2009), estimated by least squares',
+    window: dataWindow(summary),
+    assumptions: [
+      "Each day's squared return stands in for its realized variance, since only daily closes are stored",
+      'Tomorrow depends on the last day, the last 7 days and the last 30 days',
+      "Longer horizons feed each day's forecast back in as that day's value",
+    ],
+    validation: 'Coefficients and forecasts match statsmodels to 9 significant digits on a year of daily Bitcoin prices.',
+  };
 
   return (
     <div className="space-y-4">
@@ -89,6 +101,34 @@ export const RiskSummaryPanel: React.FC<RiskSummaryPanelProps> = ({ summary }) =
           info={ewmaInfo}
         />
       </div>
+
+      {forecast && (
+        <div className="space-y-3">
+          <div>
+            <h4 className="text-sm font-medium text-gray-700">Volatility Forecast (HAR-RV)</h4>
+            <p className="text-xs text-gray-500">
+              Daily {forecast.coefficients.daily.toFixed(3)} · weekly {forecast.coefficients.weekly.toFixed(3)} ·
+              monthly {forecast.coefficients.monthly.toFixed(3)} · R² {forecast.rSquared.toFixed(2)} on{' '}
+              {forecast.observations} days
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {forecast.horizons.map(({ days, annualizedVolatility }) => (
+              <MetricCard
+                key={days}
+                label={days === 1 ? 'Next Day' : `Next ${days} Days`}
+                value={`${annualizedVolatility.toFixed(1)}%`}
+                description={
+                  days === 1
+                    ? "Expected volatility for tomorrow, scaled to a year."
+                    : `Expected average volatility over the next ${days} days, scaled to a year.`
+                }
+                info={forecastInfo}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       {distribution && (
         <div className="grid grid-cols-2 gap-3">

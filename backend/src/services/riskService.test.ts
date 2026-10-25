@@ -3,8 +3,13 @@ import { join } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getRiskSummary, summarizeRisk } from './riskService';
 import { getDailyPrices, StoredPrice } from '../repositories/priceHistoryRepository';
+import { harForecastVariance } from '../models/har';
 
 vi.mock('../repositories/priceHistoryRepository', () => ({ getDailyPrices: vi.fn() }));
+vi.mock('../models/har', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../models/har')>();
+  return { ...actual, harForecastVariance: vi.fn(actual.harForecastVariance) };
+});
 
 function loadFixture<T>(model: string): T {
   return JSON.parse(readFileSync(join(__dirname, '..', 'test', 'fixtures', model, 'btc_daily.json'), 'utf8')) as T;
@@ -15,6 +20,9 @@ const returnsFixture = loadFixture<{
   prices: number[];
   reference: { periodsPerYear: number; logReturnMoments: { skewness: number; excessKurtosis: number } };
 }>('returns');
+const harFixture = loadFixture<{
+  reference: { params: Record<string, number>; rSquared: number; forecastVariance: number[] };
+}>('har');
 const volFixture = loadFixture<{
   reference: { rollingVolatility: Record<string, (number | null)[]>; ewmaVariance: Record<string, number[]> };
 }>('realized_vol');
@@ -55,6 +63,19 @@ describe('summarizeRisk on the validated BTC sample', () => {
     expect(relativeError(summary.ewmaVolatility as number, expected)).toBeLessThan(1e-12);
   });
 
+  it('forecasts volatility with HAR-RV over 1, 7 and 30 days', () => {
+    const forecast = summary.volatilityForecast!;
+    const daily = harFixture.reference.forecastVariance;
+
+    expect(relativeError(forecast.coefficients.daily, harFixture.reference.params.daily)).toBeLessThan(1e-9);
+    expect(relativeError(forecast.rSquared, harFixture.reference.rSquared)).toBeLessThan(1e-9);
+    for (const { days, annualizedVolatility } of forecast.horizons) {
+      const average = daily.slice(0, days).reduce((sum, v) => sum + v, 0) / days;
+      expect(relativeError(annualizedVolatility, Math.sqrt(average) * annualFactor)).toBeLessThan(1e-9);
+    }
+    expect(forecast.horizons.map(h => h.days)).toEqual([1, 7, 30]);
+  });
+
   it('reports the return distribution, date and coverage', () => {
     const expected = returnsFixture.reference.logReturnMoments;
     expect(relativeError(summary.returnDistribution!.skewness, expected.skewness)).toBeLessThan(1e-10);
@@ -72,6 +93,22 @@ describe('summarizeRisk', () => {
     expect(summary.realizedVolatility.map(v => v.annualizedVolatility === null)).toEqual([false, true, true]);
     expect(summary.ewmaVolatility).not.toBeNull();
     expect(summary.returnDistribution).not.toBeNull();
+  });
+
+  it('needs 120 returns before forecasting', () => {
+    expect(summarizeRisk('btc-short', btcPrices.slice(-120)).volatilityForecast).toBeNull();
+    expect(summarizeRisk('btc-enough', btcPrices.slice(-121)).volatilityForecast).not.toBeNull();
+  });
+
+  it('skips the forecast for a price that never moves', () => {
+    const summary = summarizeRisk('tokenized-fund', daily(new Array(200).fill(1)));
+    expect(summary.volatilityForecast).toBeNull();
+    expect(summary.realizedVolatility[1].annualizedVolatility).toBe(0);
+  });
+
+  it('skips the forecast when a negative coefficient drives a forecast variance below zero', () => {
+    vi.mocked(harForecastVariance).mockReturnValueOnce(new Array(30).fill(1e-4).map((v, i) => (i === 20 ? -1e-5 : v)));
+    expect(summarizeRisk('bitcoin', btcPrices).volatilityForecast).toBeNull();
   });
 
   it('counts days missing between the first and last stored price', () => {
@@ -92,6 +129,7 @@ describe('summarizeRisk', () => {
       ],
       ewmaVolatility: null,
       returnDistribution: null,
+      volatilityForecast: null,
     });
   });
 });

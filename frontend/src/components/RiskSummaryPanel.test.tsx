@@ -18,6 +18,17 @@ const btc: RiskSummary = {
   ],
   ewmaVolatility: 29.64,
   returnDistribution: { skewness: -0.245, excessKurtosis: 6.807 },
+  volatilityForecast: {
+    model: 'HAR-RV',
+    coefficients: { intercept: 0.00031, daily: 0.3448, weekly: 0.0578, monthly: 0.0069 },
+    rSquared: 0.1291,
+    observations: 333,
+    horizons: [
+      { days: 1, annualizedVolatility: 37.03 },
+      { days: 7, annualizedVolatility: 41.44 },
+      { days: 30, annualizedVolatility: 43.16 },
+    ],
+  },
 };
 
 function renderPanel(summary: RiskSummary) {
@@ -41,6 +52,22 @@ describe('RiskSummaryPanel', () => {
     expect(screen.getByText('6.81')).toBeInTheDocument();
     expect(screen.getByText(/large falls have been more common/)).toBeInTheDocument();
     expect(screen.queryByText(/missing from the stored history/)).not.toBeInTheDocument();
+  });
+
+  it('shows the HAR-RV forecast for each horizon with its coefficients', () => {
+    renderPanel(btc);
+
+    expect(screen.getByText('Volatility Forecast (HAR-RV)')).toBeInTheDocument();
+    expect(screen.getByText(/Daily 0\.345 · weekly 0\.058 ·\s+monthly 0\.007 · R² 0\.13 on 333 days/)).toBeInTheDocument();
+    expect(screen.getByText('37.0%')).toBeInTheDocument();
+    expect(screen.getByText('41.4%')).toBeInTheDocument();
+    expect(screen.getByText('43.2%')).toBeInTheDocument();
+    expect(screen.getByText('Next 30 Days')).toBeInTheDocument();
+  });
+
+  it('leaves out the forecast when there is none', () => {
+    renderPanel({ ...btc, volatilityForecast: null });
+    expect(screen.queryByText('Volatility Forecast (HAR-RV)')).not.toBeInTheDocument();
   });
 
   it('names the data behind each number in its details', () => {
@@ -68,7 +95,7 @@ describe('RiskSummaryPanel', () => {
   });
 
   it('explains when a coin has no stored history yet', () => {
-    renderPanel({ ...btc, asOf: null, observations: 0, returnDistribution: null });
+    renderPanel({ ...btc, asOf: null, observations: 0, returnDistribution: null, volatilityForecast: null });
     expect(screen.getByText(/need at least a week of stored prices/)).toBeInTheDocument();
     expect(screen.queryByText('Realized Risk')).not.toBeInTheDocument();
   });

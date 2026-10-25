@@ -80,6 +80,26 @@ export const typeDefs = `
     excessKurtosis: Float!
   }
 
+  type HarCoefficients {
+    intercept: Float!
+    daily: Float!
+    weekly: Float!
+    monthly: Float!
+  }
+
+  type ForecastHorizon {
+    days: Int!
+    annualizedVolatility: Float!
+  }
+
+  type HarForecast {
+    model: String!
+    coefficients: HarCoefficients!
+    rSquared: Float!
+    observations: Int!
+    horizons: [ForecastHorizon!]!
+  }
+
   type RiskSummary {
     coinId: String!
     asOf: String
@@ -88,6 +108,7 @@ export const typeDefs = `
     realizedVolatility: [RealizedVolatility!]!
     ewmaVolatility: Float
     returnDistribution: ReturnDistribution
+    volatilityForecast: HarForecast
   }
 
   enum TimeRange {
