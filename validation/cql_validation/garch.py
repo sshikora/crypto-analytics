@@ -48,7 +48,11 @@ def log_likelihood(omega: float, alpha: float, beta: float, resid: np.ndarray, h
 
 
 def fit(prices: np.ndarray) -> GarchFit:
-    resid = demeaned_log_returns(prices)
+    return fit_log_returns(log_returns(prices))
+
+
+def fit_log_returns(returns: np.ndarray) -> GarchFit:
+    resid = returns - returns.mean()
     h0 = float(np.mean(resid**2))
 
     # Optimise in percent units so all three parameters are of similar scale.

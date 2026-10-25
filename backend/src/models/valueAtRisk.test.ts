@@ -1,7 +1,16 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { fitStudentT, historicalTailRisk, normalTailRisk, quantile, studentTTailRisk, VarMethod } from './valueAtRisk';
+import {
+  filteredHistoricalTailRisk,
+  fitFilteredModel,
+  fitStudentT,
+  historicalTailRisk,
+  normalTailRisk,
+  quantile,
+  studentTTailRisk,
+  VarMethod,
+} from './valueAtRisk';
 import { christoffersenTest, conditionalCoverageTest, kupiecTest, varExceptions } from './varBacktest';
 import { simpleReturns } from './returns';
 
@@ -20,6 +29,7 @@ interface VarFixture {
   prices: number[];
   reference: {
     studentT: { location: number; scale: number; dof: number; logLikelihood: number };
+    filteredHistorical: { mu: number; sigma: number; residuals: number[] };
     levels: { confidence: number; methods: Record<VarMethod, MethodReference> }[];
   };
 }
@@ -30,6 +40,7 @@ const fixture = JSON.parse(
 const returns = simpleReturns(fixture.prices);
 const latest = returns.slice(-fixture.window);
 const fit = fitStudentT(latest);
+const filtered = fitFilteredModel(latest);
 
 function relativeError(actual: number, expected: number): number {
   return Math.abs(actual - expected) / Math.abs(expected);
@@ -49,16 +60,29 @@ describe('Student-t maximum likelihood against the Python reference (btc_daily)'
   });
 });
 
+describe('GARCH-filtered model against the Python reference (btc_daily)', () => {
+  const ref = fixture.reference.filteredHistorical;
+
+  it('scales tomorrow by the GARCH volatility and draws shapes from the standardized residuals', () => {
+    expect(Math.abs(filtered.mu - ref.mu)).toBeLessThan(1e-15);
+    expect(relativeError(filtered.sigma, ref.sigma)).toBeLessThan(1e-4);
+    expect(filtered.residuals).toHaveLength(ref.residuals.length);
+    filtered.residuals.forEach((z, i) => expect(Math.abs(z - ref.residuals[i])).toBeLessThan(1e-3));
+  });
+});
+
 describe.each(fixture.reference.levels)('VaR at $confidence confidence (btc_daily)', ({ confidence, methods }) => {
   const alpha = 1 - confidence;
   const headline = {
     historical: historicalTailRisk(latest, alpha),
     normal: normalTailRisk(latest, alpha),
     studentT: studentTTailRisk(fit, alpha),
+    filteredHistorical: filteredHistoricalTailRisk(filtered, alpha),
   };
 
   it.each(Object.keys(methods) as VarMethod[])('%s VaR and expected shortfall', method => {
-    const tolerance = method === 'studentT' ? 1e-6 : 1e-12;
+    // The fitted methods agree to the precision of their optimizers; the closed-form ones to rounding
+    const tolerance = { historical: 1e-12, normal: 1e-12, studentT: 1e-6, filteredHistorical: 1e-5 }[method];
     expect(relativeError(headline[method].valueAtRisk, methods[method].valueAtRisk)).toBeLessThan(tolerance);
     expect(relativeError(headline[method].expectedShortfall, methods[method].expectedShortfall)).toBeLessThan(tolerance);
   });

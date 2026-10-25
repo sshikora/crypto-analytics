@@ -1,4 +1,6 @@
 import { logGamma, normalPdf, normalQuantile, studentTPdf, studentTQuantile } from './distributions';
+import { fitGarch11 } from './garch';
+import { standardizedResiduals } from './garchDiagnostics';
 import { nelderMead } from './optimize';
 import { mean } from './returns';
 
@@ -9,7 +11,7 @@ import { mean } from './returns';
 const MIN_EXCESS_DOF = 1e-6;
 const MAX_RESTARTS = 10;
 
-export type VarMethod = 'historical' | 'normal' | 'studentT';
+export type VarMethod = 'historical' | 'normal' | 'studentT' | 'filteredHistorical';
 
 export interface TailRisk {
   valueAtRisk: number;
@@ -92,4 +94,25 @@ export function studentTTailRisk(fit: StudentTFit, alpha: number): TailRisk {
     valueAtRisk: -(fit.location + fit.scale * q),
     expectedShortfall: -(fit.location - fit.scale * tail),
   };
+}
+
+export interface FilteredModel {
+  mu: number;
+  sigma: number;
+  residuals: number[];
+}
+
+// Filtered historical simulation: GARCH(1,1) on the window's log returns, so tomorrow's log return is
+// mu + sigma[T+1] * z with z drawn from the standardized residuals rather than an assumed distribution
+export function fitFilteredModel(returns: number[]): FilteredModel {
+  const logReturns = returns.map(r => Math.log1p(r));
+  const fit = fitGarch11(logReturns);
+  return { mu: mean(logReturns), sigma: Math.sqrt(fit.nextVariance), residuals: standardizedResiduals(logReturns, fit) };
+}
+
+// Losses are converted back to simple returns, so ES averages 1 - exp(mu + sigma * z) over the tail exactly
+export function filteredHistoricalTailRisk(model: FilteredModel, alpha: number): TailRisk {
+  const qz = quantile(model.residuals, alpha);
+  const tail = model.residuals.filter(z => z <= qz).map(z => 1 - Math.exp(model.mu + model.sigma * z));
+  return { valueAtRisk: 1 - Math.exp(model.mu + model.sigma * qz), expectedShortfall: mean(tail) };
 }

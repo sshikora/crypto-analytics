@@ -1,5 +1,15 @@
 import { chiSquareSurvival } from './distributions';
-import { fitStudentT, historicalTailRisk, normalTailRisk, StudentTFit, studentTTailRisk, VarMethod } from './valueAtRisk';
+import {
+  filteredHistoricalTailRisk,
+  fitFilteredModel,
+  fitStudentT,
+  historicalTailRisk,
+  normalTailRisk,
+  StudentTFit,
+  studentTTailRisk,
+  TailRisk,
+  VarMethod,
+} from './valueAtRisk';
 
 export interface TestResult {
   statistic: number;
@@ -18,15 +28,19 @@ export function varExceptions(returns: number[], alphas: number[], window: numbe
   let fit: StudentTFit | undefined;
   for (let t = window; t < returns.length; t++) {
     const sample = returns.slice(t - window, t);
-    if (method === 'studentT') fit = fitStudentT(sample, fit);
+    let tailRisk: (alpha: number) => TailRisk;
+    if (method === 'studentT') {
+      const dayFit = (fit = fitStudentT(sample, fit));
+      tailRisk = alpha => studentTTailRisk(dayFit, alpha);
+    } else if (method === 'filteredHistorical') {
+      const model = fitFilteredModel(sample);
+      tailRisk = alpha => filteredHistoricalTailRisk(model, alpha);
+    } else {
+      const compute = method === 'historical' ? historicalTailRisk : normalTailRisk;
+      tailRisk = alpha => compute(sample, alpha);
+    }
 
-    alphas.forEach((alpha, i) => {
-      const { valueAtRisk } =
-        method === 'studentT'
-          ? studentTTailRisk(fit as StudentTFit, alpha)
-          : (method === 'historical' ? historicalTailRisk : normalTailRisk)(sample, alpha);
-      hits[i].push(returns[t] < -valueAtRisk);
-    });
+    alphas.forEach((alpha, i) => hits[i].push(returns[t] < -tailRisk(alpha).valueAtRisk));
   }
   return hits;
 }

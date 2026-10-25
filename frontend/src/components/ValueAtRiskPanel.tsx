@@ -35,6 +35,14 @@ const METHOD_DETAILS: Record<VarMethod, { label: string; model: string; assumpti
       'Location, scale and degrees of freedom fitted to the last 180 days',
     ],
   },
+  filteredHistorical: {
+    label: 'GARCH-filtered',
+    model: 'Filtered historical simulation with GARCH(1,1)',
+    assumptions: [
+      "Tomorrow's volatility comes from a GARCH(1,1) fitted to the last 180 days, so VaR rises quickly after turbulent days",
+      "The shape of a bad day comes from the last 180 days' returns scaled by their GARCH volatility, not from an assumed distribution",
+    ],
+  },
 };
 
 function readPosition(): number {
@@ -90,7 +98,7 @@ export const ValueAtRiskPanel: React.FC<ValueAtRiskPanelProps> = ({ valueAtRisk,
         ...METHOD_DETAILS[result.method].assumptions,
         `Backtest: ${backtest.exceptions} losses beyond VaR in ${backtest.days} days, each day's VaR using only the 180 days before it. Kupiec p = ${formatPValue(backtest.kupiecPValue)}, Christoffersen p = ${formatPValue(backtest.christoffersenPValue)}, conditional coverage p = ${formatPValue(backtest.conditionalCoveragePValue)}. Passes when both coverage p-values are at least 0.05.`,
       ],
-      validation: 'VaR, expected shortfall, every backtest exception and all three test statistics match a Python reference built on numpy and scipy, on a year of daily Bitcoin prices.',
+      validation: 'VaR and expected shortfall, every backtest exception and all three test statistics match a Python reference built on numpy, scipy and statsmodels, on a year of daily Bitcoin prices.',
     };
   };
 
@@ -138,7 +146,7 @@ export const ValueAtRiskPanel: React.FC<ValueAtRiskPanelProps> = ({ valueAtRisk,
         1 day in {oneDayIn(alpha)}. Expected shortfall is the average loss on those days.
       </p>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
         {level.methods.map(result => {
           const { backtest } = result;
           const label =

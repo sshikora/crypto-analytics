@@ -8,6 +8,10 @@ Conventions:
   or below it.
 - Normal: sample mean and sample standard deviation (n - 1).
 - Student-t: location, scale and degrees of freedom by maximum likelihood.
+- Filtered historical simulation: GARCH(1,1) on the window's log returns;
+  tomorrow's log return is mu + sigma[T+1] * z with z drawn from the
+  standardized residuals, so VaR = 1 - exp(mu + sigma * quantile(z)) and ES
+  averages 1 - exp(mu + sigma * z) over the residuals at or below it.
 - Backtests are out of sample: each day's VaR uses only the `window` returns
   before it. Kupiec (1995) tests the exception rate, Christoffersen (1998) tests
   whether exceptions cluster, and their sum tests conditional coverage.
@@ -17,6 +21,8 @@ from dataclasses import dataclass
 
 import numpy as np
 from scipy import optimize, stats
+
+from . import garch
 
 
 @dataclass
@@ -63,13 +69,41 @@ def student_t(returns: np.ndarray, alpha: float, fit: StudentTFit | None = None)
     return float(-(f.location + f.scale * q)), float(-(f.location - f.scale * tail))
 
 
-METHODS = {"historical": historical, "normal": normal, "studentT": student_t}
+@dataclass
+class FilteredModel:
+    mu: float
+    sigma: float
+    z: np.ndarray
 
 
-def exceptions(returns: np.ndarray, method: str, alpha: float, window: int) -> list[bool]:
+def fit_filtered(returns: np.ndarray) -> FilteredModel:
+    r = np.log1p(returns)
+    f = garch.fit_log_returns(r)
+    resid = r - r.mean()
+    return FilteredModel(mu=float(r.mean()), sigma=float(np.sqrt(f.next_variance)), z=resid[1:] / np.sqrt(f.variance))
+
+
+def filtered_historical(returns: np.ndarray, alpha: float, model: FilteredModel | None = None) -> tuple[float, float]:
+    m = model or fit_filtered(returns)
+    qz = float(np.quantile(m.z, alpha))
+    losses = 1 - np.exp(m.mu + m.sigma * m.z[m.z <= qz])
+    return float(1 - np.exp(m.mu + m.sigma * qz)), float(losses.mean())
+
+
+METHODS = {"historical": historical, "normal": normal, "studentT": student_t, "filteredHistorical": filtered_historical}
+
+
+def exceptions(returns: np.ndarray, method: str, alpha: float, window: int, models: dict | None = None) -> list[bool]:
+    """`models` caches each day's fitted model so the expensive fits are shared between confidence levels."""
     out = []
     for t in range(window, len(returns)):
-        var, _ = METHODS[method](returns[t - window : t], alpha)
+        sample = returns[t - window : t]
+        if method in ("studentT", "filteredHistorical") and models is not None:
+            if t not in models:
+                models[t] = fit_student_t(sample) if method == "studentT" else fit_filtered(sample)
+            var, _ = METHODS[method](sample, alpha, models[t])
+        else:
+            var, _ = METHODS[method](sample, alpha)
         out.append(bool(returns[t] < -var))
     return out
 

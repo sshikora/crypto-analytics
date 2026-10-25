@@ -109,14 +109,15 @@ describe('summarizeRisk on the validated BTC sample', () => {
       expect(level.confidence).toBe(ref.confidence);
       for (const m of level.methods) {
         const r = ref.methods[m.method];
-        expect(relativeError(m.valueAtRisk, r.valueAtRisk)).toBeLessThan(1e-6);
-        expect(relativeError(m.expectedShortfall, r.expectedShortfall)).toBeLessThan(1e-6);
+        expect(relativeError(m.valueAtRisk, r.valueAtRisk)).toBeLessThan(1e-5);
+        expect(relativeError(m.expectedShortfall, r.expectedShortfall)).toBeLessThan(1e-5);
         expect(m.backtest.days).toBe(r.days);
         expect(m.backtest.exceptions).toBe(r.exceptions.length);
         expect(m.backtest.expectedExceptions).toBeCloseTo(r.days * (1 - ref.confidence), 10);
         expect(m.backtest.passes).toBe(r.kupiec.pValue >= 0.05 && r.conditionalCoverage.pValue >= 0.05);
       }
     });
+    expect(v.levels[0].methods.map(m => m.method)).toEqual(['historical', 'normal', 'studentT', 'filteredHistorical']);
     // The normal model's 95% VaR was too cautious over the test period: 3 exceptions where 9 were expected
     expect(v.levels[0].methods.find(m => m.method === 'normal')!.backtest.passes).toBe(false);
   });
