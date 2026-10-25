@@ -92,4 +92,28 @@ export interface RiskSummary {
     observations: number;
     horizons: { days: number; annualizedVolatility: number }[];
   } | null;
+  valueAtRisk: ValueAtRiskSummary | null;
+}
+
+export type VarMethod = 'historical' | 'normal' | 'studentT';
+
+export interface VarMethodResult {
+  method: VarMethod;
+  valueAtRisk: number;
+  expectedShortfall: number;
+  backtest: {
+    days: number;
+    exceptions: number;
+    expectedExceptions: number;
+    kupiecPValue: number;
+    christoffersenPValue: number;
+    conditionalCoveragePValue: number;
+    passes: boolean;
+  };
+}
+
+export interface ValueAtRiskSummary {
+  windowDays: number;
+  studentTDegreesOfFreedom: number;
+  levels: { confidence: number; methods: VarMethodResult[] }[];
 }

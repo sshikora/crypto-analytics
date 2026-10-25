@@ -100,6 +100,34 @@ export const typeDefs = `
     horizons: [ForecastHorizon!]!
   }
 
+  type VarBacktest {
+    days: Int!
+    exceptions: Int!
+    expectedExceptions: Float!
+    kupiecPValue: Float!
+    christoffersenPValue: Float!
+    conditionalCoveragePValue: Float!
+    passes: Boolean!
+  }
+
+  type VarMethodResult {
+    method: String!
+    valueAtRisk: Float!
+    expectedShortfall: Float!
+    backtest: VarBacktest!
+  }
+
+  type VarLevel {
+    confidence: Float!
+    methods: [VarMethodResult!]!
+  }
+
+  type ValueAtRisk {
+    windowDays: Int!
+    studentTDegreesOfFreedom: Float!
+    levels: [VarLevel!]!
+  }
+
   type RiskSummary {
     coinId: String!
     asOf: String
@@ -109,6 +137,7 @@ export const typeDefs = `
     ewmaVolatility: Float
     returnDistribution: ReturnDistribution
     volatilityForecast: HarForecast
+    valueAtRisk: ValueAtRisk
   }
 
   enum TimeRange {

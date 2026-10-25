@@ -150,6 +150,27 @@ export const GET_RISK_SUMMARY = gql`
           annualizedVolatility
         }
       }
+      valueAtRisk {
+        windowDays
+        studentTDegreesOfFreedom
+        levels {
+          confidence
+          methods {
+            method
+            valueAtRisk
+            expectedShortfall
+            backtest {
+              days
+              exceptions
+              expectedExceptions
+              kupiecPValue
+              christoffersenPValue
+              conditionalCoveragePValue
+              passes
+            }
+          }
+        }
+      }
     }
   }
 `;

@@ -16,6 +16,7 @@ interface MetricCardProps {
   info?: MetricInfo;
   methodologyHref?: string;
   valueClassName?: string;
+  children?: React.ReactNode;
 }
 
 export const MetricCard: React.FC<MetricCardProps> = ({
@@ -25,6 +26,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
   info,
   methodologyHref,
   valueClassName = 'text-gray-900',
+  children,
 }) => {
   const [infoOpen, setInfoOpen] = useState(false);
   const container = useRef<HTMLDivElement>(null);
@@ -76,6 +78,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
       </div>
       <p className={`text-lg font-semibold ${valueClassName}`}>{value}</p>
       <p className="text-xs text-gray-500 mt-1">{description}</p>
+      {children}
 
       {info && infoOpen && (
         <div

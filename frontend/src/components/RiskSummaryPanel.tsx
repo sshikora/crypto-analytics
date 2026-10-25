@@ -1,5 +1,6 @@
 import { format, parseISO } from 'date-fns';
 import { MetricCard, MetricInfo } from './MetricCard';
+import { ValueAtRiskPanel } from './ValueAtRiskPanel';
 import { RiskSummary } from '../types/crypto';
 
 interface RiskSummaryPanelProps {
@@ -148,6 +149,12 @@ export const RiskSummaryPanel: React.FC<RiskSummaryPanelProps> = ({ summary }) =
             description="Above 0 means extreme days happen more often than a normal distribution predicts."
             info={distributionInfo}
           />
+        </div>
+      )}
+
+      {summary.valueAtRisk && (
+        <div className="border-t border-gray-200 pt-4">
+          <ValueAtRiskPanel valueAtRisk={summary.valueAtRisk} dataWindow={dataWindow(summary)} />
         </div>
       )}
     </div>
