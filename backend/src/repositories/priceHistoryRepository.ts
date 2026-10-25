@@ -1,4 +1,4 @@
-import { UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { dynamodb } from '../db/dynamodb';
 
 export interface DailyPricePoint {
@@ -12,6 +12,12 @@ export interface DailyPricePoint {
 }
 
 export type SaveOutcome = 'written' | 'existing';
+
+export interface StoredPrice {
+  date: string;
+  timestamp: number;
+  price: number;
+}
 
 function tableName(): string {
   return process.env.DYNAMODB_PRICE_HISTORY_TABLE || 'crypto-analytics-production-price-history';
@@ -56,4 +62,32 @@ export async function savePricePoint(point: DailyPricePoint): Promise<SaveOutcom
     }
     throw error;
   }
+}
+
+// Oldest first, since the sort key is the ISO date
+export async function getDailyPrices(coinId: string, fromDate: string): Promise<StoredPrice[]> {
+  const prices: StoredPrice[] = [];
+  let startKey: Record<string, unknown> | undefined;
+
+  do {
+    const result = await dynamodb.send(
+      new QueryCommand({
+        TableName: tableName(),
+        KeyConditionExpression: '#coinId = :coinId AND #date >= :fromDate',
+        ProjectionExpression: '#date, #timestamp, #price',
+        ExpressionAttributeNames: {
+          '#coinId': 'coinId',
+          '#date': 'date',
+          '#timestamp': 'timestamp',
+          '#price': 'price',
+        },
+        ExpressionAttributeValues: { ':coinId': coinId, ':fromDate': fromDate },
+        ExclusiveStartKey: startKey,
+      })
+    );
+    prices.push(...((result.Items ?? []) as StoredPrice[]));
+    startKey = result.LastEvaluatedKey;
+  } while (startKey);
+
+  return prices;
 }

@@ -9,12 +9,13 @@ import { TimeRangeSelector } from '../components/TimeRangeSelector';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { SEO } from '../components/SEO';
 import NotificationRulesList from '../components/NotificationRulesList';
-import { GET_CRYPTOCURRENCY, GET_PRICE_HISTORY, GET_MARKET_STATS } from '../services/queries';
+import { GET_CRYPTOCURRENCY, GET_PRICE_HISTORY, GET_MARKET_STATS, GET_RISK_SUMMARY } from '../services/queries';
 import { TimeRange } from '../types/crypto';
 import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { Tabs, TabItem, tabId, tabPanelId } from '../components/Tabs';
 import { Disclaimer } from '../components/Disclaimer';
+import { RiskSummaryPanel } from '../components/RiskSummaryPanel';
 import { CoinTab, useCoinPageParams } from '../hooks/useCoinPageParams';
 import { track } from '../services/analytics';
 
@@ -45,6 +46,12 @@ export const CryptoDetail: React.FC = () => {
   const { data: statsData, loading: statsLoading } = useQuery(GET_MARKET_STATS, {
     variables: { symbol: symbol?.toUpperCase() },
     skip: !symbol,
+  });
+
+  const coinGeckoId: string | undefined = cryptoData?.cryptocurrency?.coinGeckoId;
+  const { data: riskData, loading: riskLoading, error: riskError } = useQuery(GET_RISK_SUMMARY, {
+    variables: { coinId: coinGeckoId },
+    skip: !coinGeckoId || tab !== 'risk',
   });
 
   const coinLoaded = Boolean(cryptoData?.cryptocurrency);
@@ -285,6 +292,17 @@ export const CryptoDetail: React.FC = () => {
       {tab === 'risk' && (
         <div role="tabpanel" id={tabPanelId('coin', 'risk')} aria-labelledby={tabId('coin', 'risk')} className="space-y-6">
           <Disclaimer />
+          <div className="card">
+            {riskLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+              </div>
+            ) : riskError ? (
+              <p className="text-sm text-red-500">Couldn't load realized risk: {riskError.message}</p>
+            ) : riskData?.riskSummary ? (
+              <RiskSummaryPanel summary={riskData.riskSummary} />
+            ) : null}
+          </div>
           <div className="card">
             <VolatilityChart symbol={crypto.symbol} />
           </div>

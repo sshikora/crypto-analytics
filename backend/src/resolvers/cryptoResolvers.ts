@@ -1,5 +1,6 @@
 import { coinGeckoService } from '../services/coinGeckoService';
 import { fitGarch } from '../services/garchService';
+import { getRiskSummary } from '../services/riskService';
 
 const TIME_RANGE_TO_DAYS: Record<string, number> = {
   DAY: 1,
@@ -151,6 +152,8 @@ export const resolvers = {
 
       return fitGarch(prices, timestamps, symbol.toUpperCase());
     },
+
+    riskSummary: (_: any, { coinId }: { coinId: string }) => getRiskSummary(coinId),
 
     topCryptocurrencies: async (_: any, { limit = 10 }: { limit?: number }) => {
       try {

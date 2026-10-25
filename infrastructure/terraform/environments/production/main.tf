@@ -123,6 +123,7 @@ module "backend_service" {
     DYNAMODB_PREFERENCES_TABLE        = module.cognito.dynamodb_table_name
     DYNAMODB_NOTIFICATION_RULES_TABLE = module.cognito.notification_rules_table_name
     DYNAMODB_NOTIFICATIONS_TABLE      = module.cognito.notifications_table_name
+    DYNAMODB_PRICE_HISTORY_TABLE      = module.data.price_history_table_name
     ALLOWED_ORIGINS                   = "https://${var.domain_name}"
     COGNITO_USER_POOL_ID              = module.cognito.user_pool_id
     COGNITO_CLIENT_ID                 = module.cognito.user_pool_client_id
@@ -140,6 +141,7 @@ module "backend_service" {
     module.cognito.dynamodb_access_policy_arn,
     module.email.ses_send_email_policy_arn,
     module.cognito.user_lookup_policy_arn,
+    module.data.price_history_read_policy_arn,
   ]
 }
 
