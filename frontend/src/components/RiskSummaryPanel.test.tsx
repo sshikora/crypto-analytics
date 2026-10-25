@@ -29,6 +29,7 @@ const btc: RiskSummary = {
       { days: 30, annualizedVolatility: 43.16 },
     ],
   },
+  valueAtRisk: null,
 };
 
 function renderPanel(summary: RiskSummary) {

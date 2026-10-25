@@ -23,6 +23,15 @@ const returnsFixture = loadFixture<{
 const harFixture = loadFixture<{
   reference: { params: Record<string, number>; rSquared: number; forecastVariance: number[] };
 }>('har');
+const varFixture = loadFixture<{
+  reference: {
+    studentT: { dof: number };
+    levels: {
+      confidence: number;
+      methods: Record<string, { valueAtRisk: number; expectedShortfall: number; exceptions: number[]; days: number; kupiec: { pValue: number }; conditionalCoverage: { pValue: number } }>;
+    }[];
+  };
+}>('var');
 const volFixture = loadFixture<{
   reference: { rollingVolatility: Record<string, (number | null)[]>; ewmaVariance: Record<string, number[]> };
 }>('realized_vol');
@@ -76,6 +85,29 @@ describe('summarizeRisk on the validated BTC sample', () => {
     expect(forecast.horizons.map(h => h.days)).toEqual([1, 7, 30]);
   });
 
+  it('reports one-day VaR, expected shortfall and backtests for each method', () => {
+    const summary = summarizeRisk('bitcoin', btcPrices);
+    const v = summary.valueAtRisk!;
+
+    expect(v.windowDays).toBe(180);
+    expect(relativeError(v.studentTDegreesOfFreedom, varFixture.reference.studentT.dof)).toBeLessThan(1e-5);
+    v.levels.forEach((level, i) => {
+      const ref = varFixture.reference.levels[i];
+      expect(level.confidence).toBe(ref.confidence);
+      for (const m of level.methods) {
+        const r = ref.methods[m.method];
+        expect(relativeError(m.valueAtRisk, r.valueAtRisk)).toBeLessThan(1e-6);
+        expect(relativeError(m.expectedShortfall, r.expectedShortfall)).toBeLessThan(1e-6);
+        expect(m.backtest.days).toBe(r.days);
+        expect(m.backtest.exceptions).toBe(r.exceptions.length);
+        expect(m.backtest.expectedExceptions).toBeCloseTo(r.days * (1 - ref.confidence), 10);
+        expect(m.backtest.passes).toBe(r.kupiec.pValue >= 0.05 && r.conditionalCoverage.pValue >= 0.05);
+      }
+    });
+    // The normal model's 95% VaR was too cautious over the test period: 3 exceptions where 9 were expected
+    expect(v.levels[0].methods.find(m => m.method === 'normal')!.backtest.passes).toBe(false);
+  });
+
   it('reports the return distribution, date and coverage', () => {
     const expected = returnsFixture.reference.logReturnMoments;
     expect(relativeError(summary.returnDistribution!.skewness, expected.skewness)).toBeLessThan(1e-10);
@@ -111,6 +143,16 @@ describe('summarizeRisk', () => {
     expect(summarizeRisk('bitcoin', btcPrices).volatilityForecast).toBeNull();
   });
 
+  it('needs 240 returns to estimate VaR on 180 and backtest it on at least 60', () => {
+    expect(summarizeRisk('btc-short', btcPrices.slice(-240)).valueAtRisk).toBeNull();
+    expect(summarizeRisk('btc-enough', btcPrices.slice(-241)).valueAtRisk).not.toBeNull();
+  });
+
+  it('skips VaR when the price was flat for a whole window', () => {
+    const flatThenMoving = daily([...new Array(200).fill(1), ...btcPrices.slice(-100).map(p => p.price)]);
+    expect(summarizeRisk('was-pegged', flatThenMoving).valueAtRisk).toBeNull();
+  });
+
   it('counts days missing between the first and last stored price', () => {
     const prices = daily([100, 101, 102, 103, 104]).filter((_, i) => i !== 2);
     expect(summarizeRisk('gappy', prices).missingDays).toBe(1);
@@ -130,6 +172,7 @@ describe('summarizeRisk', () => {
       ewmaVolatility: null,
       returnDistribution: null,
       volatilityForecast: null,
+      valueAtRisk: null,
     });
   });
 });

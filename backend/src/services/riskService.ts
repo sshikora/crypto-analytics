@@ -3,7 +3,9 @@ import { getDailyPrices, StoredPrice } from '../repositories/priceHistoryReposit
 import { fitHar, harForecastVariance, HarFit } from '../models/har';
 import { LinearDependenceError } from '../models/linearRegression';
 import { ewmaVariance, rollingVolatility } from '../models/realizedVolatility';
-import { logReturns, moments, periodsPerYear } from '../models/returns';
+import { logReturns, moments, periodsPerYear, simpleReturns } from '../models/returns';
+import { fitStudentT, historicalTailRisk, normalTailRisk, studentTTailRisk, VarMethod } from '../models/valueAtRisk';
+import { conditionalCoverageTest, christoffersenTest, kupiecTest, varExceptions } from '../models/varBacktest';
 
 const cache = new NodeCache({ stdTTL: 3600 });
 
@@ -14,6 +16,11 @@ const EWMA_DECAY = 0.94;
 const FORECAST_HORIZONS = [1, 7, 30];
 // The 30-day component uses the first 30 returns, so this leaves 90 observations to estimate 4 coefficients
 const MIN_HAR_RETURNS = 120;
+const VAR_WINDOW = 180;
+const VAR_CONFIDENCE = [0.95, 0.99];
+const VAR_METHODS: VarMethod[] = ['historical', 'normal', 'studentT'];
+const MIN_BACKTEST_DAYS = 60;
+const BACKTEST_SIGNIFICANCE = 0.05;
 const COIN_ID_PATTERN = /^[a-z0-9-]{1,100}$/;
 
 export interface RealizedVolatility {
@@ -29,6 +36,25 @@ export interface VolatilityForecast {
   horizons: { days: number; annualizedVolatility: number }[];
 }
 
+export interface VarBacktest {
+  days: number;
+  exceptions: number;
+  expectedExceptions: number;
+  kupiecPValue: number;
+  christoffersenPValue: number;
+  conditionalCoveragePValue: number;
+  passes: boolean;
+}
+
+export interface ValueAtRiskSummary {
+  windowDays: number;
+  studentTDegreesOfFreedom: number;
+  levels: {
+    confidence: number;
+    methods: { method: VarMethod; valueAtRisk: number; expectedShortfall: number; backtest: VarBacktest }[];
+  }[];
+}
+
 export interface RiskSummary {
   coinId: string;
   asOf: string | null;
@@ -38,6 +64,7 @@ export interface RiskSummary {
   ewmaVolatility: number | null;
   returnDistribution: { skewness: number; excessKurtosis: number } | null;
   volatilityForecast: VolatilityForecast | null;
+  valueAtRisk: ValueAtRiskSummary | null;
 }
 
 // Volatilities are annualized percentages, like the GARCH model's. Windows count stored observations,
@@ -70,6 +97,55 @@ function forecastVolatility(returns: number[], annualize: (perPeriod: number) =>
   };
 }
 
+// One-day VaR and expected shortfall on the last 180 simple returns, each method backtested out of sample on
+// every earlier-fitted day. Null when there are too few days to backtest or the price was flat for a whole
+// window, where every method's VaR is zero and the Student-t likelihood has no maximum.
+function valueAtRisk(prices: StoredPrice[]): ValueAtRiskSummary | null {
+  const returns = simpleReturns(prices.map(p => p.price));
+  if (returns.length < VAR_WINDOW + MIN_BACKTEST_DAYS) return null;
+  if (rollingVolatility(returns, VAR_WINDOW).some(v => v === 0)) return null;
+
+  const latest = returns.slice(-VAR_WINDOW);
+  const fit = fitStudentT(latest);
+  const alphas = VAR_CONFIDENCE.map(c => 1 - c);
+  const hitsByMethod = Object.fromEntries(
+    VAR_METHODS.map(method => [method, varExceptions(returns, alphas, VAR_WINDOW, method)])
+  ) as Record<VarMethod, boolean[][]>;
+
+  return {
+    windowDays: VAR_WINDOW,
+    studentTDegreesOfFreedom: fit.dof,
+    levels: VAR_CONFIDENCE.map((confidence, i) => {
+      const alpha = alphas[i];
+      return {
+        confidence,
+        methods: VAR_METHODS.map(method => {
+          const risk =
+            method === 'studentT'
+              ? studentTTailRisk(fit, alpha)
+              : (method === 'historical' ? historicalTailRisk : normalTailRisk)(latest, alpha);
+          const hits = hitsByMethod[method][i];
+          const kupiec = kupiecTest(hits, alpha);
+          const conditionalCoverage = conditionalCoverageTest(hits, alpha);
+          return {
+            method,
+            ...risk,
+            backtest: {
+              days: hits.length,
+              exceptions: hits.filter(Boolean).length,
+              expectedExceptions: hits.length * alpha,
+              kupiecPValue: kupiec.pValue,
+              christoffersenPValue: christoffersenTest(hits).pValue,
+              conditionalCoveragePValue: conditionalCoverage.pValue,
+              passes: kupiec.pValue >= BACKTEST_SIGNIFICANCE && conditionalCoverage.pValue >= BACKTEST_SIGNIFICANCE,
+            },
+          };
+        }),
+      };
+    }),
+  };
+}
+
 export function summarizeRisk(coinId: string, prices: StoredPrice[]): RiskSummary {
   const returns = logReturns(prices.map(p => p.price));
   const annualize = (perPeriod: number) =>
@@ -98,6 +174,7 @@ export function summarizeRisk(coinId: string, prices: StoredPrice[]): RiskSummar
     ewmaVolatility: ewma === null ? null : annualize(Math.sqrt(ewma)),
     returnDistribution: m && { skewness: m.skewness, excessKurtosis: m.excessKurtosis },
     volatilityForecast,
+    valueAtRisk: valueAtRisk(prices),
   };
 }
 
