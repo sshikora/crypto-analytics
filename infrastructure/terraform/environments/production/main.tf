@@ -124,6 +124,7 @@ module "backend_service" {
     DYNAMODB_NOTIFICATION_RULES_TABLE = module.cognito.notification_rules_table_name
     DYNAMODB_NOTIFICATIONS_TABLE      = module.cognito.notifications_table_name
     DYNAMODB_PRICE_HISTORY_TABLE      = module.data.price_history_table_name
+    DYNAMODB_COIN_METRICS_TABLE       = module.data.coin_metrics_table_name
     ALLOWED_ORIGINS                   = "https://${var.domain_name}"
     COGNITO_USER_POOL_ID              = module.cognito.user_pool_id
     COGNITO_CLIENT_ID                 = module.cognito.user_pool_client_id
@@ -142,6 +143,7 @@ module "backend_service" {
     module.email.ses_send_email_policy_arn,
     module.cognito.user_lookup_policy_arn,
     module.data.price_history_read_policy_arn,
+    module.data.coin_metrics_read_policy_arn,
   ]
 }
 
@@ -228,12 +230,16 @@ module "scheduled_jobs" {
   execution_role_arn = module.backend_service.execution_role_arn
   alarm_topic_arn    = module.monitoring.alerts_topic_arn
 
-  task_role_policy_arns = [module.data.price_history_write_policy_arn]
+  task_role_policy_arns = [
+    module.data.price_history_write_policy_arn,
+    module.data.coin_metrics_write_policy_arn,
+  ]
 
   environment_variables = {
     NODE_ENV                     = "production"
     AWS_REGION                   = var.aws_region
     DYNAMODB_PRICE_HISTORY_TABLE = module.data.price_history_table_name
+    DYNAMODB_COIN_METRICS_TABLE  = module.data.coin_metrics_table_name
   }
 
   secrets = {
@@ -247,6 +253,15 @@ module "scheduled_jobs" {
       command           = ["node", "dist/jobs/cli.js", "ingest-prices"]
       max_silence_hours = 26
       about             = "It runs at 00:30 UTC and saves daily prices for the top 100 coins. Each run re-fetches 3 days, so one or two missed nights fill themselves in."
+    }
+    "compute-metrics" = {
+      # Runs after ingest-prices has stored the midnight close
+      schedule          = "cron(0 1 * * ? *)"
+      command           = ["node", "dist/jobs/cli.js", "compute-metrics"]
+      cpu               = 1024
+      memory            = 2048
+      max_silence_hours = 26
+      about             = "It runs at 01:00 UTC and stores each top-100 coin's Risk tab numbers. Until it succeeds, the API serves the previous day's."
     }
   }
 }

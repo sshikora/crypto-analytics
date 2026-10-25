@@ -1,11 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getRiskSummary, summarizeRisk } from './riskService';
+import { getRiskSummary, RISK_SUMMARY_VERSION, summarizeRisk } from './riskService';
+import { getLatestRiskSummary } from '../repositories/coinMetricsRepository';
 import { getDailyPrices, StoredPrice } from '../repositories/priceHistoryRepository';
 import { harForecastVariance } from '../models/har';
 
 vi.mock('../repositories/priceHistoryRepository', () => ({ getDailyPrices: vi.fn() }));
+vi.mock('../repositories/coinMetricsRepository', () => ({ getLatestRiskSummary: vi.fn() }));
 vi.mock('../models/har', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../models/har')>();
   return { ...actual, harForecastVariance: vi.fn(actual.harForecastVariance) };
@@ -180,6 +182,34 @@ describe('summarizeRisk', () => {
 describe('getRiskSummary', () => {
   beforeEach(() => {
     vi.mocked(getDailyPrices).mockReset();
+    vi.mocked(getLatestRiskSummary).mockReset();
+    vi.mocked(getLatestRiskSummary).mockResolvedValue(null);
+  });
+
+  it('serves the nightly job\'s stored summary without reading prices', async () => {
+    const stored = summarizeRisk('stored-coin', btcPrices);
+    vi.mocked(getLatestRiskSummary).mockResolvedValue({
+      riskSummary: stored,
+      version: RISK_SUMMARY_VERSION,
+      computedAt: '2026-10-22T01:00:00.000Z',
+    });
+
+    await expect(getRiskSummary('stored-coin')).resolves.toEqual(stored);
+    expect(getDailyPrices).not.toHaveBeenCalled();
+  });
+
+  it('recomputes when the stored row was written by an older version', async () => {
+    vi.mocked(getLatestRiskSummary).mockResolvedValue({
+      riskSummary: { coinId: 'old-shape' } as never,
+      version: RISK_SUMMARY_VERSION - 1,
+      computedAt: '2026-10-22T01:00:00.000Z',
+    });
+    vi.mocked(getDailyPrices).mockResolvedValue(btcPrices);
+
+    const summary = await getRiskSummary('old-shape');
+
+    expect(getDailyPrices).toHaveBeenCalledTimes(1);
+    expect(summary.observations).toBe(364);
   });
 
   it('reads the last 365 days of stored prices once and caches the result', async () => {

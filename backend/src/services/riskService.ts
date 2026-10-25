@@ -1,4 +1,5 @@
 import NodeCache from 'node-cache';
+import { getLatestRiskSummary } from '../repositories/coinMetricsRepository';
 import { getDailyPrices, StoredPrice } from '../repositories/priceHistoryRepository';
 import { fitHar, harForecastVariance, HarFit } from '../models/har';
 import { LinearDependenceError } from '../models/linearRegression';
@@ -8,6 +9,10 @@ import { fitStudentT, historicalTailRisk, normalTailRisk, studentTTailRisk, VarM
 import { conditionalCoverageTest, christoffersenTest, kupiecTest, varExceptions } from '../models/varBacktest';
 
 const cache = new NodeCache({ stdTTL: 3600 });
+
+// Stored summaries carry the version that computed them. Bump this whenever the summary's fields or definitions
+// change, so the API recomputes instead of serving rows in the old shape until the nightly job rewrites them.
+export const RISK_SUMMARY_VERSION = 1;
 
 const MS_PER_DAY = 86_400_000;
 const HISTORY_DAYS = 365;
@@ -178,6 +183,13 @@ export function summarizeRisk(coinId: string, prices: StoredPrice[]): RiskSummar
   };
 }
 
+export async function computeRiskSummary(coinId: string, now = Date.now()): Promise<RiskSummary> {
+  const fromDate = new Date(now - HISTORY_DAYS * MS_PER_DAY).toISOString().slice(0, 10);
+  return summarizeRisk(coinId, await getDailyPrices(coinId, fromDate));
+}
+
+// The nightly compute-metrics job stores each coin's summary, so a request normally reads one row. It computes on
+// request only for a coin the job hasn't covered yet or a row written by an older version.
 export async function getRiskSummary(coinId: string, now = Date.now()): Promise<RiskSummary> {
   if (!COIN_ID_PATTERN.test(coinId)) {
     throw new Error('Invalid coin id');
@@ -186,8 +198,9 @@ export async function getRiskSummary(coinId: string, now = Date.now()): Promise<
   const cached = cache.get<RiskSummary>(coinId);
   if (cached) return cached;
 
-  const fromDate = new Date(now - HISTORY_DAYS * MS_PER_DAY).toISOString().slice(0, 10);
-  const summary = summarizeRisk(coinId, await getDailyPrices(coinId, fromDate));
+  const stored = await getLatestRiskSummary(coinId);
+  const summary =
+    stored?.version === RISK_SUMMARY_VERSION ? stored.riskSummary : await computeRiskSummary(coinId, now);
 
   cache.set(coinId, summary);
   return summary;
