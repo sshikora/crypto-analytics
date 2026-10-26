@@ -1,269 +1,73 @@
-# Infrastructure Overview
+# Infrastructure
 
-This directory contains all infrastructure-as-code and deployment configurations for the Crypto Analytics platform on AWS.
+Everything CryptoQuantLab runs on in AWS (`us-east-1`) is defined in OpenTofu under [`terraform/`](terraform/): one environment, `production`, built from the modules below. The top-level [README](../README.md) has the architecture diagram.
 
-## Directory Structure
+## Modules
 
-```
-infrastructure/
-├── terraform/               # OpenTofu/OpenTofu configurations
-│   ├── modules/
-│   │   ├── vpc/            # VPC with multi-AZ networking
-│   │   ├── eks/            # EKS cluster and node groups
-│   │   └── route53/        # DNS and SSL certificates
-│   └── environments/
-│       └── production/     # Production environment config
-├── kubernetes/             # Kubernetes manifests
-│   ├── namespace.yaml
-│   ├── backend-deployment.yaml
-│   ├── frontend-deployment.yaml
-│   └── ingress.yaml
-├── scripts/
-│   └── deploy.sh          # Automated deployment script
-├── DEPLOYMENT.md          # Full deployment guide
-├── QUICK_START.md         # Quick deployment guide
-└── README.md             # This file
-```
+| Module | What it creates |
+|---|---|
+| `vpc` | VPC with public subnets in two availability zones and an internet gateway. There's no NAT gateway: tasks get public IPs and accept no inbound traffic except from the load balancer |
+| `route53` | The `cryptoquantlab.com` hosted zone and the ACM certificate with its validation records |
+| `frontend_cdn` | Private S3 bucket and CloudFront distribution for the React app, using origin access control |
+| `backend_service` | ECR repository, ECS cluster, Fargate service for the GraphQL API, the load balancer that accepts only CloudFront traffic (checked by a secret origin header), SSM parameters for secrets, and the API's task role |
+| `api_cdn` | CloudFront distribution and AWS WAF web ACL in front of the API at `api.cryptoquantlab.com` |
+| `cognito` | User pool and web client; DynamoDB tables for preferences, notification rules and notifications; the policy letting the API look up a user's email |
+| `email` | SES domain identity with DKIM, Google Workspace MX and DKIM records, and the policy allowing the API to send from `noreply@` and `support@` |
+| `data` | DynamoDB `price-history` (deletion protection and point-in-time recovery, since rows older than a year can't be re-fetched) and `coin-metrics` (recomputable), each with read and write policies |
+| `scheduled_jobs` | One Fargate task definition and EventBridge Scheduler schedule per job, a shared task role and log group, and missed-run and failed-run alarms per job |
+| `monitoring` | SNS alerts topic, Route 53 health checks, and alarms for site and API health, 5xx errors, CPU, memory and the crossover checker |
+| `github_oidc` | Two roles that trust the account's GitHub Actions OIDC provider: `github-deploy` for the deploy workflow and `github-terraform` for the infrastructure workflow |
 
-## Quick Links
+## State
 
-- **[Quick Start Guide](./QUICK_START.md)** - Get up and running fast
-- **[Full Deployment Guide](./DEPLOYMENT.md)** - Comprehensive instructions
-- **[Deployment Script](./scripts/deploy.sh)** - Automated deployment
+State is in S3 (`crypto-analytics-opentofu-state`, key `production/opentofu.tfstate`), locked by the DynamoDB table `crypto-analytics-opentofu-locks`. OpenTofu 1.10.7 is used, with the AWS provider `~> 5.0`.
 
-## Architecture
+## Making a change
 
-### AWS Resources Created
-
-1. **Networking**
-   - VPC (10.0.0.0/16)
-   - 3 Public Subnets (across 3 AZs)
-   - 3 Private Subnets (across 3 AZs)
-   - 3 NAT Gateways (one per AZ)
-   - Internet Gateway
-   - Route Tables
-
-2. **Compute**
-   - EKS Cluster (Kubernetes 1.28)
-   - Node Group (t3.medium, 2-4 nodes)
-   - Auto-scaling enabled
-
-3. **Load Balancing**
-   - Application Load Balancer
-   - SSL/TLS termination
-   - Health checks
-
-4. **DNS & Certificates**
-   - Route 53 Hosted Zone
-   - ACM SSL Certificate (*.cryptoquantlab.com)
-   - External DNS integration
-
-5. **Container Registry**
-   - ECR repositories for backend and frontend
-
-### Kubernetes Resources
-
-1. **Deployments**
-   - Backend (2-10 replicas)
-   - Frontend (2-10 replicas)
-   - Rolling updates
-   - Health checks (liveness/readiness)
-
-2. **Services**
-   - Backend (ClusterIP)
-   - Frontend (ClusterIP)
-
-3. **Ingress**
-   - ALB-based ingress controller
-   - SSL/TLS certificates
-   - Path-based routing
-   - Host-based routing
-
-4. **Autoscaling**
-   - Horizontal Pod Autoscaler (HPA)
-   - CPU-based scaling
-   - Memory-based scaling
-
-## Domain Configuration
-
-The infrastructure is configured for **cryptoquantlab.com** with the following subdomains:
-
-- `cryptoquantlab.com` → Frontend
-- `www.cryptoquantlab.com` → Frontend
-- `api.cryptoquantlab.com` → Backend GraphQL API
-
-## Deployment Methods
-
-### Method 1: Automated Script (Recommended)
+Plan to a file, review the plan, then apply exactly that file:
 
 ```bash
-cd scripts
-./deploy.sh
+cd infrastructure/terraform/environments/production
+tofu init
+
+# The DKIM value is a sensitive variable kept out of the repository. Read it from the live record,
+# or the plan will delete the record and break Google Workspace mail signing.
+export TF_VAR_google_dkim_value="$(aws route53 list-resource-record-sets \
+  --hosted-zone-id "$(aws route53 list-hosted-zones-by-name --dns-name cryptoquantlab.com --query 'HostedZones[0].Id' --output text)" \
+  --query "ResourceRecordSets[?Type=='TXT' && starts_with(Name,'google._domainkey')].ResourceRecords[0].Value" \
+  --output text | sed -E 's/" "//g; s/^"//; s/"$//')"
+
+tofu plan -var-file=terraform.tfvars.cost-optimized -out=change.tfplan
+tofu apply change.tfplan
 ```
 
-This script handles:
-- ECR setup
-- Docker builds
-- Image pushes
-- Kubernetes deployments
-- DNS configuration
+Plan files are gitignored because they can contain secrets. Delete them after applying.
 
-### Method 2: Manual Deployment
+The **Terraform Infrastructure Deployment** workflow runs the same plan or apply from GitHub Actions on manual dispatch. It uses the `github-terraform` role, and the `production` environment requires a reviewer's approval.
 
-Follow the [Full Deployment Guide](./DEPLOYMENT.md) for step-by-step manual deployment.
+### Things to know before changing something
 
-### Method 3: CI/CD Pipeline
+- **The API's task definition** is registered by Terraform, but the deploy workflow registers a new revision for each image and the service ignores Terraform's revision. Environment variable changes take effect on the next deploy.
+- **Task-role policy lists** (`task_role_policy_arns`) are attached by index. Append new policies at the end; inserting one in the middle detaches and reattaches the ones after it, briefly removing their permissions.
+- **Ordering:** when code needs new permissions or a new table, apply first, then merge. Merging to `master` deploys.
+- **Scheduled jobs** are a map in `environments/production/main.tf`. Each entry needs a `schedule`, `command`, `max_silence_hours` and an `about` sentence for its alarm emails. CloudWatch limits alarm descriptions to 1,024 characters, and a plan fails if one is longer. Each job's failed-run alarm description includes the `aws ecs run-task` command to run it by hand.
+- **A new job's missed-run alarm** fires falsely on its first day, before any run has been counted, and clears itself after the first successful run.
 
-Set up a CI/CD pipeline using:
-- GitHub Actions
-- AWS CodePipeline
-- GitLab CI
-- Jenkins
+## Kept outside OpenTofu
 
-## Prerequisites
+- **SNS email subscriptions** for the alerts topic, so no addresses are in the repository.
+- **The secret values in SSM.** Terraform creates the parameters; the deploy workflow writes the CoinGecko key from a GitHub secret.
+- **The account-wide `BillingAlarm` and the `crypto-analytics-monthly` budget,** which cover other projects in the account too.
 
-- AWS CLI configured
-- kubectl installed
-- Docker installed
-- OpenTofu or OpenTofu installed
-- Domain ready (cryptoquantlab.com)
+## Email
 
-## Estimated Costs
+SES has production access. Cognito sends sign-up and password emails through SES (`email_sending_account = "DEVELOPER"`) from `noreply@cryptoquantlab.com`, and the API sends alert emails from the same address.
 
-| Resource | Monthly Cost |
-|----------|-------------|
-| EKS Cluster | $73 |
-| EC2 Nodes (2x t3.medium) | $60 |
-| NAT Gateways (3x) | $97 |
-| Application Load Balancer | $22 |
-| Route 53 | $1 |
-| Data Transfer | Variable |
-| **Total** | **~$250-300** |
+## Deployments
 
-### Cost Optimization Tips
-
-1. **Reduce NAT Gateways**: Use 1 instead of 3 (saves ~$65/month)
-2. **Use Spot Instances**: 60-90% savings on compute
-3. **Use Fargate**: Pay only for pods running
-4. **Reserved Instances**: Commit to 1-3 years for savings
-
-## Security Features
-
-- Private subnets for application workloads
-- Public subnets only for load balancers
-- Security groups with least privilege
-- SSL/TLS encryption (HTTPS only)
-- Kubernetes RBAC
-- Network policies
-- Pod security policies
-- Secrets management via Kubernetes secrets
-
-## Monitoring & Logging
-
-Recommendations for production:
-
-1. **CloudWatch Logs**
-   - EKS control plane logs
-   - Application logs
-
-2. **CloudWatch Metrics**
-   - EKS cluster metrics
-   - ALB metrics
-   - Custom application metrics
-
-3. **AWS X-Ray**
-   - Distributed tracing
-   - Performance insights
-
-4. **Prometheus & Grafana**
-   - Kubernetes metrics
-   - Custom dashboards
-   - Alerting
-
-## High Availability
-
-The infrastructure is designed for high availability:
-
-- Multi-AZ deployment (3 availability zones)
-- Auto-scaling node groups
-- Horizontal pod autoscaling
-- Load balancer health checks
-- Rolling updates with zero downtime
-- Pod anti-affinity rules
-
-## Disaster Recovery
-
-### Backup Strategy
-
-1. **Infrastructure**
-   - OpenTofu state in S3 (versioned)
-   - Infrastructure as Code in Git
-
-2. **Application**
-   - Docker images in ECR
-   - Configuration in Git
-   - Kubernetes manifests in Git
-
-### Recovery Procedures
-
-1. **Complete Rebuild**
-   ```bash
-   tofu apply
-   ./scripts/deploy.sh
-   ```
-
-2. **Rollback Application**
-   ```bash
-   kubectl rollout undo deployment/backend -n crypto-analytics
-   ```
-
-## Troubleshooting
-
-See the [Full Deployment Guide](./DEPLOYMENT.md#troubleshooting) for detailed troubleshooting steps.
-
-Common issues:
-- Pods not starting
-- Ingress not working
-- DNS not resolving
-- SSL certificate issues
-
-## Updates & Maintenance
-
-### Update Kubernetes Version
-
-```bash
-cd terraform/environments/production
-# Edit variables.tf - update cluster_version
-tofu apply
-```
-
-### Update Application
-
-```bash
-# Build new images
-docker build -t ...
-
-# Update deployment
-kubectl set image deployment/backend ...
-```
-
-### Update Infrastructure
-
-```bash
-cd terraform/environments/production
-# Edit configuration files
-tofu plan
-tofu apply
-```
-
-## Support
-
-For issues or questions:
-- Review [DEPLOYMENT.md](./DEPLOYMENT.md)
-- Check [QUICK_START.md](./QUICK_START.md)
-- Review AWS CloudWatch logs
-- Check Kubernetes events
-- Consult AWS documentation
-
-## License
-NO PUBLIC LICENSE
+`.github/workflows/deploy.yml` runs on every push to `master`, one run at a time:
+1. Runs the tests.
+2. Builds the backend image and pushes it to ECR, tagged with the commit SHA and `latest`. Scheduled jobs run `latest`.
+3. Builds the frontend, syncs it to S3, and invalidates CloudFront.
+4. Writes secrets to SSM.
+5. Registers a new task definition revision with the image, updates the ECS service and waits for it to be stable. A deployment that never becomes healthy rolls back.
