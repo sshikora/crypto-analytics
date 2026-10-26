@@ -7,6 +7,7 @@ export interface MetricInfo {
   window: string;
   assumptions: string[];
   validation?: string;
+  methodologyHref?: string;
 }
 
 interface MetricCardProps {
@@ -14,7 +15,6 @@ interface MetricCardProps {
   value: string;
   description: string;
   info?: MetricInfo;
-  methodologyHref?: string;
   valueClassName?: string;
   children?: React.ReactNode;
 }
@@ -24,7 +24,6 @@ export const MetricCard: React.FC<MetricCardProps> = ({
   value,
   description,
   info,
-  methodologyHref,
   valueClassName = 'text-gray-900',
   children,
 }) => {
@@ -100,8 +99,8 @@ export const MetricCard: React.FC<MetricCardProps> = ({
           {info.validation && (
             <p><span className="font-medium text-gray-900">Validation:</span> {info.validation}</p>
           )}
-          {methodologyHref && (
-            <Link to={methodologyHref} className="inline-block text-primary-600 hover:text-primary-700 font-medium">
+          {info.methodologyHref && (
+            <Link to={info.methodologyHref} className="inline-block text-primary-600 hover:text-primary-700 font-medium">
               Methodology →
             </Link>
           )}

@@ -6,6 +6,7 @@ interface AnalyticsEvents {
   view_model: { model: string; metric: string };
   create_alert: { coinSymbol: string; ruleType: string; emailEnabled: boolean };
   signup: Record<string, never>;
+  view_methodology: { section: string };
 }
 
 export function track<E extends keyof AnalyticsEvents>(event: E, properties: AnalyticsEvents[E]): void {

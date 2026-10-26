@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { ApolloProvider } from '@apollo/client';
 import { Provider } from 'react-redux';
@@ -12,6 +12,7 @@ import { Help } from './pages/Help';
 import { Login } from './pages/Login';
 import { SignUp } from './pages/SignUp';
 import { ForgotPassword } from './pages/ForgotPassword';
+import { LoadingSpinner } from './components/LoadingSpinner';
 import NotificationToast from './components/NotificationToast';
 import { Disclaimer } from './components/Disclaimer';
 import { apolloClient } from './services/apollo';
@@ -20,6 +21,9 @@ import { AuthProvider } from './context/AuthContext';
 import { NotificationProvider } from './context/NotificationContext';
 import { configureAmplify } from './services/amplifyConfig';
 import { posthog } from './services/posthog';
+
+// KaTeX is only needed on the Methodology page, so it loads with that page
+const Methodology = lazy(() => import('./pages/Methodology'));
 
 // Initialize Amplify
 configureAmplify();
@@ -54,6 +58,14 @@ function App() {
                       <Route path="/markets" element={<Markets />} />
                       <Route path="/about" element={<About />} />
                       <Route path="/help" element={<Help />} />
+                      <Route
+                        path="/methodology"
+                        element={
+                          <Suspense fallback={<LoadingSpinner />}>
+                            <Methodology />
+                          </Suspense>
+                        }
+                      />
                       <Route path="/crypto/:symbol" element={<CryptoDetail />} />
                       <Route path="/login" element={<Login />} />
                       <Route path="/signup" element={<SignUp />} />

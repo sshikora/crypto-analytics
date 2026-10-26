@@ -32,6 +32,7 @@ export const RiskSummaryPanel: React.FC<RiskSummaryPanelProps> = ({ summary }) =
 
   const realizedInfo: MetricInfo = {
     model: 'Close-to-close realized volatility',
+    methodologyHref: '/methodology#realized-volatility',
     window: dataWindow(summary),
     assumptions: [
       'Sample standard deviation of daily log returns over the window',
@@ -42,6 +43,7 @@ export const RiskSummaryPanel: React.FC<RiskSummaryPanelProps> = ({ summary }) =
 
   const ewmaInfo: MetricInfo = {
     model: 'RiskMetrics EWMA, decay 0.94',
+    methodologyHref: '/methodology#realized-volatility',
     window: dataWindow(summary),
     assumptions: [
       'Each day counts 6% less than the next, so the last 30 days carry about 84% of the weight',
@@ -52,6 +54,7 @@ export const RiskSummaryPanel: React.FC<RiskSummaryPanelProps> = ({ summary }) =
 
   const distributionInfo: MetricInfo = {
     model: 'Sample skewness and excess kurtosis (bias-adjusted)',
+    methodologyHref: '/methodology#data',
     window: dataWindow(summary),
     assumptions: ['Measured on daily log returns', 'A normal distribution has 0 for both'],
     validation: VALIDATION,
@@ -62,6 +65,7 @@ export const RiskSummaryPanel: React.FC<RiskSummaryPanelProps> = ({ summary }) =
 
   const forecastInfo: MetricInfo = {
     model: 'HAR-RV (Corsi 2009), estimated by least squares',
+    methodologyHref: '/methodology#har-rv',
     window: dataWindow(summary),
     assumptions: [
       "Each day's squared return stands in for its realized variance, since only daily closes are stored",

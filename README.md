@@ -2,7 +2,7 @@
 
 Risk analytics for the 100 largest cryptocurrencies: realized and forecast volatility, GARCH with diagnostics, and one-day Value at Risk and expected shortfall with out-of-sample backtests. Every model is implemented in TypeScript and checked against an independent Python reference built on numpy, scipy, statsmodels and `arch`.
 
-**Live:** https://cryptoquantlab.com — open any coin and choose the **Risk** tab.
+**Live:** https://cryptoquantlab.com — open any coin and choose the **Risk** tab. The [Methodology page](https://cryptoquantlab.com/methodology) has every model's formulas, assumptions, validation and references, next to today's numbers for Bitcoin.
 
 ## What it computes
 
@@ -163,7 +163,6 @@ Data provided by CoinGecko.
 - 10-day VaR, which needs Monte Carlo simulation.
 - Regime detection.
 - Risk columns on the Markets page.
-- A Methodology page with the derivations.
 
 ## Disclaimer
 

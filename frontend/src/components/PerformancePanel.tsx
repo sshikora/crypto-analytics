@@ -28,17 +28,20 @@ export const PerformancePanel: React.FC<PerformancePanelProps> = ({ performance,
   const ratioInfo = (model: string, assumptions: string[]): MetricInfo => ({
     model,
     window,
+    methodologyHref: '/methodology#performance',
     assumptions: [...assumptions, 'Risk-free rate taken as 0, the usual convention for crypto'],
     validation: VALIDATION,
   });
   const drawdownInfo: MetricInfo = {
     model: 'Drawdown from the running high',
+    methodologyHref: '/methodology#performance',
     window,
     assumptions: ['Drawdown is the close divided by the highest close so far, minus 1', 'Highs before the window are not counted'],
     validation: VALIDATION,
   };
   const betaInfo: MetricInfo = {
     model: "Ordinary least squares of the coin's daily returns on Bitcoin's",
+    methodologyHref: '/methodology#performance',
     window,
     assumptions: ['Only dates both coins have are used', 'A beta of 1 means the coin moves one for one with Bitcoin on average'],
     validation: 'Matches scipy linregress to 12 significant digits for Ethereum against Bitcoin.',
