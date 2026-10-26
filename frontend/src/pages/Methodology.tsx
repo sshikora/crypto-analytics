@@ -404,6 +404,14 @@ export default function Methodology() {
               <a href={`${SOURCE}/validation`} className="text-primary-600 hover:text-primary-700 font-mono">
                 validation/
               </a>
+              . Full write-ups with outputs:{' '}
+              <a href={`${SOURCE}/validation/notebooks/garch.ipynb`} className="text-primary-600 hover:text-primary-700 font-mono">
+                garch.ipynb
+              </a>
+              ,{' '}
+              <a href={`${SOURCE}/validation/notebooks/value_at_risk.ipynb`} className="text-primary-600 hover:text-primary-700 font-mono">
+                value_at_risk.ipynb
+              </a>
             </p>
           </Section>
 

@@ -59,6 +59,15 @@ The validation turned up real bugs:
 
 Across the 93 coins with enough history, the 95% backtest passes for 86 with GARCH-filtered simulation, 80 historical, 69 Student-t and 58 normal.
 
+### Notebooks
+
+Two notebooks in [`validation/notebooks/`](validation/notebooks/) write up the main models in full, with their outputs:
+
+- [`garch.ipynb`](validation/notebooks/garch.ipynb): the data's fat tails; the model and likelihood; estimation compared with `arch`; the likelihood surface; a simulation study of how well a year of data identifies the parameters; diagnostics; forecasts; limitations.
+- [`value_at_risk.ipynb`](validation/notebooks/value_at_risk.ipynb): the four VaR and ES methods; the Student-t fit; rolling out-of-sample VaR with every exception marked; Kupiec and Christoffersen tests; the power of a one-year backtest; limitations.
+
+`uv run scripts/build_notebooks.py` regenerates and re-executes both.
+
 ### Running the validation
 
 ```bash
