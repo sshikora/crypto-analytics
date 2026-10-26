@@ -127,6 +127,35 @@ export const GET_RISK_SUMMARY = gql`
           annualizedVolatility
         }
       }
+      performance {
+        annualizedReturn
+        sharpeRatio
+        sortinoRatio
+        calmarRatio
+        drawdown {
+          maxDrawdown
+          peakDate
+          troughDate
+          recoveryDate
+          currentDrawdown
+          longestDrawdownDays
+        }
+        worstDays {
+          date
+          return
+        }
+        worstWeek {
+          startDate
+          endDate
+          return
+        }
+        betaToBitcoin {
+          windowDays
+          observations
+          beta
+          correlation
+        }
+      }
       garch {
         omega
         alpha

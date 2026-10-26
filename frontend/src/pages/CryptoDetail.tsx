@@ -4,6 +4,7 @@ import { useQuery } from '@apollo/client';
 import { PriceChart } from '../components/PriceChart';
 import { MovingAverageChart } from '../components/MovingAverageChart';
 import { GarchPanel } from '../components/GarchPanel';
+import { PerformancePanel } from '../components/PerformancePanel';
 import { StatCard } from '../components/StatCard';
 import { TimeRangeSelector } from '../components/TimeRangeSelector';
 import { LoadingSpinner } from '../components/LoadingSpinner';
@@ -303,6 +304,16 @@ export const CryptoDetail: React.FC = () => {
               <RiskSummaryPanel summary={riskData.riskSummary} />
             ) : null}
           </div>
+          {riskData?.riskSummary?.performance && (
+            <div className="card">
+              <PerformancePanel
+                performance={riskData.riskSummary.performance}
+                coinId={riskData.riskSummary.coinId}
+                asOf={riskData.riskSummary.asOf}
+                closes={riskData.riskSummary.observations}
+              />
+            </div>
+          )}
           {riskData?.riskSummary?.garch && (
             <div className="card">
               <GarchPanel
