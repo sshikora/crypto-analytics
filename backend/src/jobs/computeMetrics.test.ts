@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { computeMetrics } from './computeMetrics';
 import { coinGeckoService } from '../services/coinGeckoService';
 import { computeRiskSummary, loadBenchmarkPrices, RISK_SUMMARY_VERSION, RiskSummary } from '../services/riskService';
-import { saveRiskSummary } from '../repositories/coinMetricsRepository';
+import { saveMarketSnapshot, saveRiskSummary } from '../repositories/coinMetricsRepository';
 
 vi.mock('../services/coinGeckoService', () => ({ coinGeckoService: { getMarketData: vi.fn() } }));
 vi.mock('../services/riskService', async (importOriginal) => ({
@@ -10,13 +10,21 @@ vi.mock('../services/riskService', async (importOriginal) => ({
   computeRiskSummary: vi.fn(),
   loadBenchmarkPrices: vi.fn(),
 }));
-vi.mock('../repositories/coinMetricsRepository', () => ({ saveRiskSummary: vi.fn() }));
+vi.mock('../repositories/coinMetricsRepository', () => ({ saveRiskSummary: vi.fn(), saveMarketSnapshot: vi.fn() }));
 
 const now = new Date('2026-10-26T01:00:00Z');
 const benchmark = [{ date: '2026-10-26', timestamp: 0, price: 80000 }];
 
 function summaryFor(coinId: string, asOf: string | null): RiskSummary {
-  return { coinId, asOf, observations: asOf ? 366 : 0 } as RiskSummary;
+  return {
+    coinId,
+    asOf,
+    observations: asOf ? 366 : 0,
+    realizedVolatility: [{ windowDays: 30, annualizedVolatility: 25 }],
+    valueAtRisk: null,
+    performance: null,
+    regime: null,
+  } as unknown as RiskSummary;
 }
 
 describe('computeMetrics', () => {
@@ -47,6 +55,23 @@ describe('computeMetrics', () => {
       '2026-10-26T01:00:00.000Z'
     );
     expect(saveRiskSummary).toHaveBeenCalledTimes(2);
+  });
+
+  it('stores one market snapshot row with every written coin, dated by the run', async () => {
+    await computeMetrics({ now, retryDelaysMs: [] });
+
+    expect(saveMarketSnapshot).toHaveBeenCalledTimes(1);
+    const [date, rows, version, computedAt] = vi.mocked(saveMarketSnapshot).mock.calls[0];
+    expect([date, version, computedAt]).toEqual(['2026-10-26', RISK_SUMMARY_VERSION, '2026-10-26T01:00:00.000Z']);
+    expect(rows.map(r => r.coinId)).toEqual(['bitcoin', 'ethereum']);
+    expect(rows[0]).toEqual({
+      coinId: 'bitcoin',
+      asOf: '2026-10-26',
+      volatility30d: 25,
+      currentDrawdown: null,
+      valueAtRisk95: null,
+      regime: null,
+    });
   });
 
   it('limits the run to the top coins by market cap', async () => {

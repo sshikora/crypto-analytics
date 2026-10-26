@@ -72,6 +72,24 @@ export interface RiskSummary {
   valueAtRisk: ValueAtRiskSummary | null;
   garch: GarchSummary | null;
   performance: PerformanceSummary | null;
+  regime: Regime | null;
+}
+
+export interface Regime {
+  trend: 'up' | 'down';
+  movingAverage: number;
+  priceToMovingAverage: number;
+  volatilityPercentile: number;
+  volatilityLevel: 'low' | 'normal' | 'high';
+}
+
+export interface MarketRiskRow {
+  coinId: string;
+  asOf: string;
+  volatility30d: number | null;
+  currentDrawdown: number | null;
+  valueAtRisk95: number | null;
+  regime: Regime | null;
 }
 
 export interface PerformanceSummary {

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getLatestRiskSummary, saveRiskSummary } from './coinMetricsRepository';
+import { getLatestMarketSnapshot, getLatestRiskSummary, saveMarketSnapshot, saveRiskSummary } from './coinMetricsRepository';
 import { dynamodb } from '../db/dynamodb';
 import type { RiskSummary } from '../services/riskService';
 
@@ -37,6 +37,19 @@ describe('coinMetricsRepository', () => {
     expect(input.ExpressionAttributeValues).toEqual({ ':coinId': 'bitcoin' });
     expect(input.ScanIndexForward).toBe(false);
     expect(input.Limit).toBe(1);
+  });
+
+  it('stores and reads the market snapshot under a key no coin can have', async () => {
+    vi.mocked(dynamodb.send).mockResolvedValue({ Items: [{ rows: [], version: 5, computedAt: 't' }] } as never);
+
+    await saveMarketSnapshot('2026-10-26', [], 5, 't');
+    await getLatestMarketSnapshot();
+
+    const put = vi.mocked(dynamodb.send).mock.calls[0][0].input as any;
+    const query = vi.mocked(dynamodb.send).mock.calls[1][0].input as any;
+    expect(put.Item).toEqual({ coinId: '__market__', date: '2026-10-26', version: 5, computedAt: 't', rows: [] });
+    expect(query.ExpressionAttributeValues).toEqual({ ':coinId': '__market__' });
+    expect(query.ScanIndexForward).toBe(false);
   });
 
   it('returns null for a coin with no rows', async () => {

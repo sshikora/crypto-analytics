@@ -18,6 +18,7 @@ const SECTIONS = [
   { id: 'value-at-risk', title: 'Value at Risk and expected shortfall' },
   { id: 'backtesting', title: 'VaR backtesting' },
   { id: 'performance', title: 'Return, drawdown and beta' },
+  { id: 'regime', title: 'Regime' },
   { id: 'validation', title: 'How the models are validated' },
   { id: 'references', title: 'References' },
 ] as const;
@@ -324,6 +325,40 @@ export default function Methodology() {
             </Live>
           </Section>
 
+          <Section id="regime" title="Regime" code={['backend/src/models/regime.ts']}>
+            <p>
+              A simple threshold regime, shown as a badge on each coin and on the Markets page. It describes the recent
+              state of the market for a coin; it is not a signal to buy or sell.
+            </p>
+            <ul className="list-disc pl-5 space-y-2">
+              <li>
+                <strong>Trend</strong> compares the latest close with its 200-day simple moving average:
+                <Formula tex="\text{trend} = \begin{cases} \text{up} & P_n > \frac{1}{200}\sum_{i=n-199}^{n} P_i \\ \text{down} & \text{otherwise} \end{cases}" />
+              </li>
+              <li>
+                <strong>Volatility level</strong> ranks the latest 30-day realized volatility among every 30-day window in
+                the coin's stored history: below the 33rd percentile is low, above the 67th is high.
+                <Formula tex="p = \frac{1}{m}\sum_{j=1}^{m} \mathbf{1}\left[\hat\sigma_{30,j} \le \hat\sigma_{30,m}\right]" />
+              </li>
+            </ul>
+            <p className="text-sm text-gray-600">
+              Both are relative to the coin itself, so a stablecoin can be in high volatility for a stablecoin. Coins
+              with fewer than 200 closes, or a price that never moved, get no regime. A two- or three-state hidden Markov
+              model is planned to replace these thresholds.
+            </p>
+            <Live summary={btc}>
+              {s =>
+                s.regime && (
+                  <p>
+                    {s.regime.trend === 'up' ? 'uptrend' : 'downtrend'}: price {s.regime.priceToMovingAverage.toFixed(3)}× its
+                    200-day average · 30-day volatility at the {Math.round(s.regime.volatilityPercentile * 100)}th percentile,{' '}
+                    {s.regime.volatilityLevel}
+                  </p>
+                )
+              }
+            </Live>
+          </Section>
+
           <Section id="validation" title="How the models are validated">
             <p>
               Each model has a reference implementation in Python, written from the formulas above. A script runs it on a
@@ -353,6 +388,7 @@ export default function Methodology() {
                     ['GARCH-filtered VaR/ES', 'the GARCH reference', 'about 1e-6; identical exception days'],
                     ['Kupiec, Christoffersen', 'scipy chi-square', '1e-10'],
                     ['Return, drawdown, beta', 'pandas, numpy, scipy linregress', '1e-12'],
+                    ['Regime', 'pandas rolling mean, rolling std and rank', '1e-12'],
                   ].map(([model, against, tolerance]) => (
                     <tr key={model} className="border-t border-gray-100">
                       <td className="pr-4 py-1">{model}</td>

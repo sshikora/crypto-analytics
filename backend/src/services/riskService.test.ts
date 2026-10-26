@@ -1,13 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getRiskSummary, RISK_SUMMARY_VERSION, summarizeRisk } from './riskService';
-import { getLatestRiskSummary } from '../repositories/coinMetricsRepository';
+import { getMarketRisk, getRiskSummary, marketRiskRow, RISK_SUMMARY_VERSION, summarizeRisk } from './riskService';
+import { getLatestMarketSnapshot, getLatestRiskSummary } from '../repositories/coinMetricsRepository';
 import { getDailyPrices, StoredPrice } from '../repositories/priceHistoryRepository';
 import { harForecastVariance } from '../models/har';
 
 vi.mock('../repositories/priceHistoryRepository', () => ({ getDailyPrices: vi.fn() }));
-vi.mock('../repositories/coinMetricsRepository', () => ({ getLatestRiskSummary: vi.fn() }));
+vi.mock('../repositories/coinMetricsRepository', () => ({ getLatestRiskSummary: vi.fn(), getLatestMarketSnapshot: vi.fn() }));
 vi.mock('../models/har', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../models/har')>();
   return { ...actual, harForecastVariance: vi.fn(actual.harForecastVariance) };
@@ -58,6 +58,9 @@ const ethPrices: StoredPrice[] = performanceFixture.coins.ethereum.prices.map((p
   timestamp: performanceFixture.timestamps[i],
   price,
 }));
+const regimeFixture = JSON.parse(
+  readFileSync(join(__dirname, '..', 'test', 'fixtures', 'regime', 'btc_eth_daily.json'), 'utf8')
+) as { coins: { bitcoin: { cases: { closes: number; trend: string; volatilityLevel: string; volatilityPercentile: number }[] } } };
 const volFixture = loadFixture<{
   reference: { rollingVolatility: Record<string, (number | null)[]>; ewmaVariance: Record<string, number[]> };
 }>('realized_vol');
@@ -190,6 +193,35 @@ describe('summarizeRisk on the validated BTC sample', () => {
     expect(flat.performance).toMatchObject({ sharpeRatio: null, sortinoRatio: null, calmarRatio: null, betaToBitcoin: null });
   });
 
+  it('labels the trend and volatility regime', () => {
+    const expected = regimeFixture.coins.bitcoin.cases.find(c => c.closes === btcPrices.length)!;
+    const r = summarizeRisk('bitcoin', btcPrices).regime!;
+
+    expect([r.trend, r.volatilityLevel]).toEqual([expected.trend, expected.volatilityLevel]);
+    expect(Math.abs(r.volatilityPercentile - expected.volatilityPercentile)).toBeLessThan(1e-12);
+    expect(summarizeRisk('btc-short', btcPrices.slice(-199)).regime).toBeNull();
+    expect(summarizeRisk('flat', daily(new Array(250).fill(1))).regime).toBeNull();
+  });
+
+  it('condenses a summary into a Markets row with 30-day volatility, drawdown, 95% GARCH-filtered VaR and regime', () => {
+    const summary = summarizeRisk('bitcoin', btcPrices);
+    const fhs = summary.valueAtRisk!.levels[0].methods.find(m => m.method === 'filteredHistorical')!;
+
+    expect(marketRiskRow('2026-10-21', summary)).toEqual({
+      coinId: 'bitcoin',
+      asOf: '2026-10-21',
+      volatility30d: summary.realizedVolatility[1].annualizedVolatility,
+      currentDrawdown: summary.performance!.drawdown.currentDrawdown,
+      valueAtRisk95: fhs.valueAtRisk,
+      regime: summary.regime,
+    });
+    expect(marketRiskRow('2026-10-21', summarizeRisk('new', btcPrices.slice(-20)))).toMatchObject({
+      currentDrawdown: null,
+      valueAtRisk95: null,
+      regime: null,
+    });
+  });
+
   it('reports the return distribution, date and coverage', () => {
     const expected = returnsFixture.reference.logReturnMoments;
     expect(relativeError(summary.returnDistribution!.skewness, expected.skewness)).toBeLessThan(1e-10);
@@ -257,6 +289,7 @@ describe('summarizeRisk', () => {
       valueAtRisk: null,
       garch: null,
       performance: null,
+      regime: null,
     });
   });
 });
@@ -313,5 +346,26 @@ describe('getRiskSummary', () => {
     await expect(getRiskSummary('Bitcoin; DROP')).rejects.toThrow('Invalid coin id');
     await expect(getRiskSummary('x'.repeat(101))).rejects.toThrow('Invalid coin id');
     expect(getDailyPrices).not.toHaveBeenCalled();
+  });
+});
+
+describe('getMarketRisk', () => {
+  const rows = [{ coinId: 'bitcoin', asOf: '2026-10-26', volatility30d: 25, currentDrawdown: -0.27, valueAtRisk95: 0.027, regime: null }];
+
+  beforeEach(() => {
+    vi.mocked(getLatestMarketSnapshot).mockReset();
+  });
+
+  it('returns nothing until a snapshot in the current version exists, then caches it', async () => {
+    vi.mocked(getLatestMarketSnapshot).mockResolvedValueOnce(null);
+    await expect(getMarketRisk()).resolves.toBeNull();
+
+    vi.mocked(getLatestMarketSnapshot).mockResolvedValueOnce({ rows, version: RISK_SUMMARY_VERSION - 1, computedAt: 'x' });
+    await expect(getMarketRisk()).resolves.toBeNull();
+
+    vi.mocked(getLatestMarketSnapshot).mockResolvedValueOnce({ rows, version: RISK_SUMMARY_VERSION, computedAt: '2026-10-26T01:00:00.000Z' });
+    await expect(getMarketRisk()).resolves.toEqual({ computedAt: '2026-10-26T01:00:00.000Z', rows });
+    await expect(getMarketRisk()).resolves.toEqual({ computedAt: '2026-10-26T01:00:00.000Z', rows });
+    expect(getLatestMarketSnapshot).toHaveBeenCalledTimes(3);
   });
 });

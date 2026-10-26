@@ -1,6 +1,6 @@
 import { coinGeckoService } from '../services/coinGeckoService';
-import { computeRiskSummary, loadBenchmarkPrices, RISK_SUMMARY_VERSION } from '../services/riskService';
-import { saveRiskSummary } from '../repositories/coinMetricsRepository';
+import { computeRiskSummary, loadBenchmarkPrices, MarketRiskRow, marketRiskRow, RISK_SUMMARY_VERSION } from '../services/riskService';
+import { saveMarketSnapshot, saveRiskSummary } from '../repositories/coinMetricsRepository';
 import { withRetry } from './retry';
 
 export interface MetricsOptions {
@@ -26,6 +26,7 @@ export async function computeMetrics(options: MetricsOptions = {}): Promise<Metr
   const summary: MetricsSummary = { coins: universe.length, written: 0, skipped: [], failed: [] };
   const computedAt = now.toISOString();
   const benchmark = await loadBenchmarkPrices(now.getTime());
+  const marketRows: MarketRiskRow[] = [];
 
   for (const coin of universe) {
     try {
@@ -35,6 +36,7 @@ export async function computeMetrics(options: MetricsOptions = {}): Promise<Metr
         continue;
       }
       await saveRiskSummary(riskSummary.asOf, riskSummary, RISK_SUMMARY_VERSION, computedAt);
+      marketRows.push(marketRiskRow(riskSummary.asOf, riskSummary));
       summary.written++;
     } catch (error: any) {
       console.error(`[compute-metrics] ${coin.id} failed: ${error?.message ?? error}`);
@@ -42,5 +44,7 @@ export async function computeMetrics(options: MetricsOptions = {}): Promise<Metr
     }
   }
 
+  // The Markets table reads every coin from this one row
+  await saveMarketSnapshot(computedAt.slice(0, 10), marketRows, RISK_SUMMARY_VERSION, computedAt);
   return summary;
 }

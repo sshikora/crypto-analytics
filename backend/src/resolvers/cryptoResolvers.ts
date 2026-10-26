@@ -1,5 +1,5 @@
 import { coinGeckoService } from '../services/coinGeckoService';
-import { getRiskSummary } from '../services/riskService';
+import { getMarketRisk, getRiskSummary } from '../services/riskService';
 
 const TIME_RANGE_TO_DAYS: Record<string, number> = {
   DAY: 1,
@@ -136,6 +136,7 @@ export const resolvers = {
     },
 
     riskSummary: (_: any, { coinId }: { coinId: string }) => getRiskSummary(coinId),
+    marketRisk: () => getMarketRisk(),
 
     topCryptocurrencies: async (_: any, { limit = 10 }: { limit?: number }) => {
       try {

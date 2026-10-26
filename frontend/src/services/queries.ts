@@ -96,6 +96,14 @@ export const GET_MARKET_STATS = gql`
   }
 `;
 
+const REGIME_FIELDS = `
+  trend
+  movingAverage
+  priceToMovingAverage
+  volatilityPercentile
+  volatilityLevel
+`;
+
 export const GET_RISK_SUMMARY = gql`
   query GetRiskSummary($coinId: String!) {
     riskSummary(coinId: $coinId) {
@@ -126,6 +134,9 @@ export const GET_RISK_SUMMARY = gql`
           days
           annualizedVolatility
         }
+      }
+      regime {
+        ${REGIME_FIELDS}
       }
       performance {
         annualizedReturn
@@ -209,6 +220,37 @@ export const GET_RISK_SUMMARY = gql`
               passes
             }
           }
+        }
+      }
+    }
+  }
+`;
+
+// Small enough to load on every tab, for the badge in the coin header
+export const GET_REGIME = gql`
+  query GetRegime($coinId: String!) {
+    riskSummary(coinId: $coinId) {
+      coinId
+      asOf
+      regime {
+        ${REGIME_FIELDS}
+      }
+    }
+  }
+`;
+
+export const GET_MARKET_RISK = gql`
+  query GetMarketRisk {
+    marketRisk {
+      computedAt
+      rows {
+        coinId
+        asOf
+        volatility30d
+        currentDrawdown
+        valueAtRisk95
+        regime {
+          ${REGIME_FIELDS}
         }
       }
     }
