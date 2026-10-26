@@ -59,9 +59,9 @@ describe('MetricCard', () => {
   });
 
   it('links to the methodology when a page is given', () => {
-    renderCard({ methodologyHref: '/methodology/garch' });
+    renderCard({ info: { ...info, methodologyHref: '/methodology#garch' } });
     fireEvent.click(screen.getByRole('button', { name: 'About Current Volatility' }));
-    expect(screen.getByRole('link', { name: 'Methodology →' })).toHaveAttribute('href', '/methodology/garch');
+    expect(screen.getByRole('link', { name: 'Methodology →' })).toHaveAttribute('href', '/methodology#garch');
   });
 
   it('has no info button without model details', () => {

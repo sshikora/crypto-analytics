@@ -93,6 +93,7 @@ export const ValueAtRiskPanel: React.FC<ValueAtRiskPanelProps> = ({ valueAtRisk,
     const { backtest } = result;
     return {
       model: METHOD_DETAILS[result.method].model,
+      methodologyHref: '/methodology#value-at-risk',
       window: dataWindow,
       assumptions: [
         ...METHOD_DETAILS[result.method].assumptions,

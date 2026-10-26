@@ -42,6 +42,7 @@ function Badge({ ok, children }: { ok: boolean; children: React.ReactNode }) {
 export const GarchPanel: React.FC<GarchPanelProps> = ({ garch, asOf, closes }) => {
   const info: MetricInfo = {
     model: 'GARCH(1,1), fitted by maximum likelihood',
+    methodologyHref: '/methodology#garch',
     window: `${closes} daily closes (00:00 UTC, from CoinGecko) up to ${asOf}.`,
     assumptions: [
       "Today's variance depends on yesterday's variance and yesterday's surprise",
