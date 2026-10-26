@@ -1,9 +1,10 @@
 import NodeCache from 'node-cache';
-import { getLatestRiskSummary } from '../repositories/coinMetricsRepository';
+import { getLatestMarketSnapshot, getLatestRiskSummary } from '../repositories/coinMetricsRepository';
 import { getDailyPrices, StoredPrice } from '../repositories/priceHistoryRepository';
 import { fitGarch11, garchForecastVariance } from '../models/garch';
 import { informationCriteria, ljungBox, normalQqPoints, standardizedResiduals, TestResult } from '../models/garchDiagnostics';
 import { fitHar, harForecastVariance, HarFit } from '../models/har';
+import { regime, Regime, TREND_DAYS } from '../models/regime';
 import {
   annualizedReturn,
   betaTo,
@@ -33,7 +34,7 @@ const cache = new NodeCache({ stdTTL: 3600 });
 
 // Stored summaries carry the version that computed them. Bump this whenever the summary's fields or definitions
 // change, so the API recomputes instead of serving rows in the old shape until the nightly job rewrites them.
-export const RISK_SUMMARY_VERSION = 4;
+export const RISK_SUMMARY_VERSION = 5;
 
 const MS_PER_DAY = 86_400_000;
 const HISTORY_DAYS = 365;
@@ -130,6 +131,22 @@ export interface RiskSummary {
   valueAtRisk: ValueAtRiskSummary | null;
   garch: GarchSummary | null;
   performance: PerformanceSummary | null;
+  regime: Regime | null;
+}
+
+// One compact row per coin for the Markets table, stored by compute-metrics after each run
+export interface MarketRiskRow {
+  coinId: string;
+  asOf: string;
+  volatility30d: number | null;
+  currentDrawdown: number | null;
+  valueAtRisk95: number | null;
+  regime: Regime | null;
+}
+
+export interface MarketRisk {
+  computedAt: string;
+  rows: MarketRiskRow[];
 }
 
 // Volatilities are annualized percentages, like the GARCH model's. Windows count stored observations,
@@ -321,6 +338,9 @@ export function summarizeRisk(coinId: string, prices: StoredPrice[], benchmark: 
     valueAtRisk: valueAtRisk(prices),
     garch: garchSummary(prices),
     performance: performance(prices, benchmark),
+    // A flat price ranks its zero volatility at the top of its own history, so it gets no regime
+    regime:
+      prices.length >= TREND_DAYS && moments(returns).standardDeviation > 0 ? regime(prices.map(p => p.price)) : null,
   };
 }
 
@@ -355,4 +375,33 @@ export async function getRiskSummary(coinId: string, now = Date.now()): Promise<
 
   cache.set(coinId, summary);
   return summary;
+}
+
+export function marketRiskRow(asOf: string, summary: RiskSummary): MarketRiskRow {
+  const fhs95 = summary.valueAtRisk?.levels
+    .find(level => level.confidence === 0.95)
+    ?.methods.find(m => m.method === 'filteredHistorical');
+  return {
+    coinId: summary.coinId,
+    asOf,
+    volatility30d: summary.realizedVolatility.find(v => v.windowDays === 30)?.annualizedVolatility ?? null,
+    currentDrawdown: summary.performance?.drawdown.currentDrawdown ?? null,
+    valueAtRisk95: fhs95?.valueAtRisk ?? null,
+    regime: summary.regime,
+  };
+}
+
+const marketCache = new NodeCache({ stdTTL: 3600 });
+
+// Null until compute-metrics has written a snapshot in the current shape; 100 coins are too many to compute on request
+export async function getMarketRisk(): Promise<MarketRisk | null> {
+  const cached = marketCache.get<MarketRisk>('market');
+  if (cached) return cached;
+
+  const stored = await getLatestMarketSnapshot();
+  if (stored?.version !== RISK_SUMMARY_VERSION) return null;
+
+  const market = { computedAt: stored.computedAt, rows: stored.rows };
+  marketCache.set('market', market);
+  return market;
 }

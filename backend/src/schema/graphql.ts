@@ -178,6 +178,28 @@ export const typeDefs = `
     betaToBitcoin: [Beta!]
   }
 
+  type Regime {
+    trend: String!
+    movingAverage: Float!
+    priceToMovingAverage: Float!
+    volatilityPercentile: Float!
+    volatilityLevel: String!
+  }
+
+  type MarketRiskRow {
+    coinId: String!
+    asOf: String!
+    volatility30d: Float
+    currentDrawdown: Float
+    valueAtRisk95: Float
+    regime: Regime
+  }
+
+  type MarketRisk {
+    computedAt: String!
+    rows: [MarketRiskRow!]!
+  }
+
   type RiskSummary {
     coinId: String!
     asOf: String
@@ -190,6 +212,7 @@ export const typeDefs = `
     valueAtRisk: ValueAtRisk
     garch: GarchSummary
     performance: PerformanceSummary
+    regime: Regime
   }
 
   enum TimeRange {
@@ -303,6 +326,7 @@ export const typeDefs = `
     marketStats(symbol: String!): MarketStats
     topCryptocurrencies(limit: Int): [Cryptocurrency!]!
     riskSummary(coinId: String!): RiskSummary!
+    marketRisk: MarketRisk
     userPreferences(userId: String!): UserPreferences
 
     # Notification Queries

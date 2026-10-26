@@ -78,6 +78,7 @@ describe('Methodology', () => {
       'Value at Risk and expected shortfall',
       'VaR backtesting',
       'Return, drawdown and beta',
+      'Regime',
       'How the models are validated',
       'References',
     ]) {

@@ -5,12 +5,13 @@ import { PriceChart } from '../components/PriceChart';
 import { MovingAverageChart } from '../components/MovingAverageChart';
 import { GarchPanel } from '../components/GarchPanel';
 import { PerformancePanel } from '../components/PerformancePanel';
+import { RegimeBadge } from '../components/RegimeBadge';
 import { StatCard } from '../components/StatCard';
 import { TimeRangeSelector } from '../components/TimeRangeSelector';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { SEO } from '../components/SEO';
 import NotificationRulesList from '../components/NotificationRulesList';
-import { GET_CRYPTOCURRENCY, GET_PRICE_HISTORY, GET_MARKET_STATS, GET_RISK_SUMMARY } from '../services/queries';
+import { GET_CRYPTOCURRENCY, GET_PRICE_HISTORY, GET_MARKET_STATS, GET_REGIME, GET_RISK_SUMMARY } from '../services/queries';
 import { TimeRange } from '../types/crypto';
 import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
@@ -53,6 +54,11 @@ export const CryptoDetail: React.FC = () => {
   const { data: riskData, loading: riskLoading, error: riskError } = useQuery(GET_RISK_SUMMARY, {
     variables: { coinId: coinGeckoId },
     skip: !coinGeckoId || tab !== 'risk',
+  });
+
+  const { data: regimeData } = useQuery(GET_REGIME, {
+    variables: { coinId: coinGeckoId },
+    skip: !coinGeckoId,
   });
 
   const coinLoaded = Boolean(cryptoData?.cryptocurrency);
@@ -148,7 +154,10 @@ export const CryptoDetail: React.FC = () => {
           )}
           <div>
             <h1 className="text-3xl font-bold text-gray-900">{crypto.name}</h1>
-            <p className="text-gray-500 uppercase">{crypto.symbol}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-gray-500 uppercase">{crypto.symbol}</p>
+              {regimeData?.riskSummary?.regime && <RegimeBadge regime={regimeData.riskSummary.regime} />}
+            </div>
           </div>
         </div>
         <div className="text-right">
