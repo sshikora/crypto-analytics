@@ -1,404 +1,172 @@
-# Crypto Analytics Platform
+# CryptoQuantLab
 
-A comprehensive cryptocurrency analytics web application built with React, Redux, TypeScript, Tailwind CSS, GraphQL, DynamoDB, and Express.
+Risk analytics for the 100 largest cryptocurrencies: realized and forecast volatility, GARCH with diagnostics, and one-day Value at Risk and expected shortfall with out-of-sample backtests. Every model is implemented in TypeScript and checked against an independent Python reference built on numpy, scipy, statsmodels and `arch`.
 
-**Live Demo**: https://cryptoquantlab.com (when deployed)
+**Live:** https://cryptoquantlab.com — open any coin and choose the **Risk** tab.
 
-[![Deploy to AWS](https://img.shields.io/badge/Deploy%20to-AWS%20EKS-orange)](./infrastructure/QUICK_START.md)
+## What it computes
 
-## Features
+All models run on stored daily closes (00:00 UTC) for the last 365 days. A nightly job computes them for each coin and the API serves the stored result.
 
-- **Real-time Crypto Data**: Live cryptocurrency prices, market caps, and trading volumes
-- **Interactive Charts**: Price history visualization with multiple time ranges (24h, 7d, 1m, 1y, all)
-- **Market Analytics**:
-  - Current price and 24h price changes
-  - Market capitalization
-  - Trading volume (24h)
-  - All-time high/low prices
-  - Supply information (circulating, total, max)
-  - 24h high/low prices
-- **Dashboard View**: Quick overview of top cryptocurrencies
-- **Markets View**: Comprehensive table view of 50+ cryptocurrencies
-- **Detailed Crypto Pages**: In-depth analytics for individual cryptocurrencies
+| Model | Method | Code |
+|---|---|---|
+| Returns and moments | Log and simple returns; sample standard deviation; bias-adjusted skewness (G1) and excess kurtosis (G2) | [`returns.ts`](backend/src/models/returns.ts) |
+| Realized volatility | 7, 30 and 90-day close-to-close; RiskMetrics EWMA (λ = 0.94), weight-normalised so it needs no seed | [`realizedVolatility.ts`](backend/src/models/realizedVolatility.ts) |
+| HAR-RV | Corsi (2009) with 1, 7 and 30-day components for a market that trades every day; squared daily returns as the realized variance proxy; OLS by Householder QR | [`har.ts`](backend/src/models/har.ts), [`linearRegression.ts`](backend/src/models/linearRegression.ts) |
+| GARCH(1,1) | Gaussian maximum likelihood on demeaned log returns; 1, 7 and 30-day forecasts | [`garch.ts`](backend/src/models/garch.ts) |
+| GARCH diagnostics | Log-likelihood, AIC and BIC; Ljung-Box (10 lags) on standardized residuals and their squares; residual kurtosis; normal QQ; half-life in days | [`garchDiagnostics.ts`](backend/src/models/garchDiagnostics.ts) |
+| Value at Risk and expected shortfall | One-day, 95% and 99%, by historical simulation, normal, Student-t (maximum likelihood) and GARCH-filtered historical simulation | [`valueAtRisk.ts`](backend/src/models/valueAtRisk.ts) |
+| VaR backtests | Each day's VaR from the 180 returns before it; Kupiec unconditional coverage, Christoffersen independence, conditional coverage | [`varBacktest.ts`](backend/src/models/varBacktest.ts) |
+| Probability functions | Log-gamma (Lanczos), incomplete gamma and beta (Lentz continued fractions), normal and Student-t pdf, cdf and quantile, chi-square tail | [`distributions.ts`](backend/src/models/distributions.ts) |
 
-## Tech Stack
+## How the models are validated
 
-### Frontend
-- **React 18** - UI framework
-- **TypeScript** - Type safety
-- **Redux Toolkit** - State management
-- **Apollo Client** - GraphQL client
-- **Tailwind CSS** - Styling
-- **Recharts** - Data visualization
-- **React Router** - Navigation
-- **Vite** - Build tool
+[`validation/`](validation/) is a small Python package with a reference implementation of each model, written from the formulas. A script per model runs the reference on a fixed year of Bitcoin closes, compares it with a standard library, and writes a JSON fixture. It stops instead of writing the fixture if the two disagree. The TypeScript tests then compare against the fixture.
 
-### Backend
-- **Express** - Web server
-- **GraphQL Yoga** - GraphQL server
-- **TypeScript** - Type safety
-- **DynamoDB** - Notification rules, user preferences and daily price history
-- **Node Cache** - API response caching
-- **Axios** - HTTP client for external APIs
+| Model | Reference checked against | TypeScript matches the reference to |
+|---|---|---|
+| Returns, moments | scipy, pandas (1e-12) | 1e-14 (returns), 1e-10 (moments) |
+| Rolling and EWMA volatility | pandas `rolling().std()`, `ewm()` (1e-12) | 1e-12 |
+| HAR-RV | statsmodels OLS (1e-10) | 1e-9, coefficients and all 30 forecast days |
+| GARCH(1,1) | Multi-start SLSQP polished by Nelder-Mead; `arch` as a cross-check | log-likelihood 1e-4, parameters 1e-3 |
+| Ljung-Box, AIC, BIC | statsmodels `acorr_ljungbox` | 1e-12 on the same residuals |
+| Probability functions | scipy, 353 values into the far tails | worst case 1.3e-13 |
+| Historical and normal VaR/ES | numpy quantile, scipy | 1e-12 |
+| Student-t VaR/ES | scipy `t.fit` polished to the maximum | likelihood 1e-8, VaR 1e-6 |
+| GARCH-filtered VaR/ES | the GARCH reference above | about 1e-6, every backtest exception day identical |
+| Kupiec, Christoffersen | scipy chi-square | 1e-10 |
 
-### Infrastructure
-- **AWS EKS** - Kubernetes cluster
-- **OpenTofu** - Infrastructure as Code
-- **Docker** - Containerization
-- **Nginx** - Frontend web server
-- **Application Load Balancer** - HTTPS/SSL termination
-- **Route 53** - DNS management
-- **ACM** - SSL/TLS certificates
-- **ECR** - Container registry
+The validation turned up real bugs:
 
-## Project Structure
+- The GARCH forecast started one step too early, so the one-day forecast was off by 4.2%. Comparing with `arch` found it.
+- For stablecoins, the Student-t degrees of freedom tended to 2, and the next day's warm start took `log(0)`. That stalled the optimizer for 1.7 s per coin. Running every model over all stored coins, not only the Bitcoin fixture, found it.
 
-```
-crypto-analytics/
-├── backend/
-│   ├── src/
-│   │   ├── db/              # Database connection
-│   │   ├── schema/          # Database & GraphQL schemas
-│   │   ├── resolvers/       # GraphQL resolvers
-│   │   ├── services/        # External API services
-│   │   └── index.ts         # Server entry point
-│   ├── package.json
-│   └── tsconfig.json
-├── frontend/
-│   ├── src/
-│   │   ├── components/      # React components
-│   │   ├── pages/           # Page components
-│   │   ├── services/        # Apollo Client & queries
-│   │   ├── store/           # Redux store & slices
-│   │   ├── types/           # TypeScript types
-│   │   ├── App.tsx          # Main app component
-│   │   └── main.tsx         # Entry point
-│   ├── package.json
-│   ├── Dockerfile
-│   └── vite.config.ts
-├── infrastructure/
-│   ├── terraform/           # OpenTofu/Terraform configs
-│   │   ├── modules/
-│   │   │   ├── vpc/         # VPC module
-│   │   │   ├── eks/         # EKS cluster module
-│   │   │   └── route53/     # Route53 & ACM module
-│   │   └── environments/
-│   │       └── production/  # Production environment
-│   ├── kubernetes/          # K8s manifests
-│   │   ├── namespace.yaml
-│   │   ├── backend-deployment.yaml
-│   │   ├── frontend-deployment.yaml
-│   │   └── ingress.yaml
-│   ├── scripts/
-│   │   └── deploy.sh        # Deployment script
-│   ├── DEPLOYMENT.md        # Full deployment guide
-│   └── QUICK_START.md       # Quick start guide
-└── README.md
-```
+### Bitcoin, one year to 2026-10-21
 
-## Prerequisites
+- **Distribution:** daily volatility 2.30%, about 44% annualized. Skewness −0.25, excess kurtosis 6.8.
+- **GARCH:** α = 0.19, β = 0.64, half-life 3.6 days. Ljung-Box finds no remaining autocorrelation (p = 0.62) or clustering (p = 0.37) in the standardized residuals, but their excess kurtosis is still 2.6.
+- **HAR-RV:** R² 0.13. Only the daily component is significant (HAC t = 4.5).
 
-- Node.js 18+ and npm/yarn
+| 95% one-day VaR, 183 test days | VaR | ES | Exceptions (9.2 expected) | Kupiec p |
+|---|---|---|---|---|
+| Historical | 2.64% | 3.63% | 5 | 0.125 |
+| Normal | 3.10% | 3.90% | 3 | 0.016 (too cautious) |
+| Student-t, ν = 3.3 | 2.94% | 4.65% | 4 | 0.050 |
+| GARCH-filtered | 2.42% | 3.16% | 7 | 0.448 |
 
-## Installation
+Across the 93 coins with enough history, the 95% backtest passes for 86 with GARCH-filtered simulation, 80 historical, 69 Student-t and 58 normal.
 
-### 1. Clone or navigate to the project
+### Running the validation
 
 ```bash
-cd crypto-analytics
+cd validation
+uv sync
+uv run scripts/make_var_fixtures.py      # one script per model; each prints its results
 ```
 
-### 2. Set up Backend
+The fixtures land in `backend/src/test/fixtures/`. The sample data is CoinGecko's daily Bitcoin series, in `validation/data/`.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  CG[CoinGecko API]
+  SCH[EventBridge Scheduler]
+  ING["ingest-prices<br/>Fargate task, 00:30 UTC"]
+  CM["compute-metrics<br/>Fargate task, 01:00 UTC"]
+  PH[("DynamoDB<br/>price-history")]
+  MET[("DynamoDB<br/>coin-metrics")]
+  API["GraphQL API<br/>Express + Yoga on Fargate"]
+  EDGE["CloudFront + WAF<br/>then the load balancer"]
+  WEB["React app<br/>S3 + CloudFront"]
+
+  SCH --> ING
+  SCH --> CM
+  CG --> ING --> PH --> CM --> MET
+  MET --> API
+  PH --> API
+  CG -->|live prices, cached| API
+  WEB --> EDGE --> API
+  API --> COG[Cognito]
+  API --> SES[SES alert email]
+```
+
+- **Nightly pipeline.**
+  - `ingest-prices` stores the midnight close, market cap and volume for the top 100 coins. A coin new to the top 100 gets a year of history in one run.
+  - `compute-metrics` runs every model above for each coin and stores the result.
+  - Each job has a missed-run and a failed-run alarm.
+- **API.**
+  - `riskSummary(coinId)` reads the stored result, and computes on request only for a coin the job hasn't covered yet. Each stored row carries a version, so a deploy that changes the summary never serves rows in the old shape.
+  - Signed-in users set moving-average crossover alerts. A 5-minute check records each trigger with a conditional write, so overlapping tasks during a deploy can't send duplicates, then emails the user's verified Cognito address.
+- **Edge.** The API sits behind CloudFront and AWS WAF, and the load balancer accepts only CloudFront traffic.
+- **Infrastructure as code.**
+  - Everything is in OpenTofu under [`infrastructure/terraform`](infrastructure/terraform).
+  - GitHub Actions deploys on every merge to `master` through OIDC, with no long-lived AWS keys, one deploy at a time.
+  - Infrastructure changes are planned and reviewed before they're applied.
+- **Monitoring.** CloudWatch alarms cover site and API health, 5xx errors, CPU and memory, the alert checker and both jobs. Each alarm's email says what it means, how urgent it is, and the first commands to run.
+
+## Repository layout
+
+```
+backend/
+  src/models/        Pure model functions, one test file each
+  src/services/      Risk summary, CoinGecko client, notifications
+  src/jobs/          Nightly jobs and the 5-minute crossover checker
+  src/repositories/  DynamoDB access
+  src/resolvers/     GraphQL resolvers; schema in src/schema/graphql.ts
+  src/test/fixtures/ Fixtures written by validation/
+frontend/
+  src/pages/         Dashboard, Markets, coin page (Overview and Risk tabs)
+  src/components/    MetricCard, ValueAtRiskPanel, GarchPanel, charts
+validation/
+  cql_validation/    Python reference implementations
+  scripts/           One fixture script per model
+infrastructure/terraform/
+  modules/           vpc, backend_service, api_cdn, frontend_cdn, data, scheduled_jobs,
+                     monitoring, cognito, email, route53, github_oidc
+  environments/production/
+```
+
+## Running locally
+
+Requires Node 24 and npm.
 
 ```bash
 cd backend
 npm install
-
-# Copy environment variables
 cp .env.example .env
+ENABLE_CROSSOVER_CHECKER=false npm run dev    # http://localhost:4000/graphql
 
-# Edit .env if needed
-# PORT=4000
-```
-
-### 3. Set up Frontend
-
-```bash
 cd ../frontend
 npm install
-
-# Copy environment variables
 cp .env.example .env
+npm run dev                                   # http://localhost:3000
 ```
 
-## Running the Application
+Keep the crossover checker off locally if `.env` points at shared tables, or it can send real alerts.
 
-### Start Backend Server
+Tests run with `npm run test:run` in `backend/` and in `frontend/`.
 
-```bash
-cd backend
-npm run dev
-```
+## Data
 
-The GraphQL server will run on `http://localhost:4000`
-GraphQL Playground: `http://localhost:4000/graphql`
+Prices come from the [CoinGecko API](https://www.coingecko.com/en/api). The demo key used here has two limits:
+- **365 days of history.** Rows are stored as they arrive, so the history grows past a year from now on.
+- **No daily open, high or low.** Range-based volatility estimators such as Parkinson and Garman-Klass wait for an exchange OHLC source.
 
-### Start Frontend Development Server
+Data provided by CoinGecko.
 
-```bash
-cd frontend
-npm run dev
-```
+## Not yet built
 
-The frontend will run on `http://localhost:3000`
+- 10-day VaR, which needs Monte Carlo simulation.
+- Regime detection.
+- Drawdown and return-risk ratios, and beta to Bitcoin.
+- Risk columns on the Markets page.
+- A Methodology page with the derivations.
 
-## GraphQL API
+## Disclaimer
 
-### Queries
-
-#### Get Top Cryptocurrencies
-```graphql
-query {
-  topCryptocurrencies(limit: 10) {
-    id
-    symbol
-    name
-    currentPrice
-    marketCap
-    volume24h
-    priceChangePercentage24h
-  }
-}
-```
-
-#### Get Specific Cryptocurrency
-```graphql
-query {
-  cryptocurrency(symbol: "BTC") {
-    name
-    symbol
-    currentPrice
-    marketCap
-    athPrice
-    athDate
-  }
-}
-```
-
-#### Get Price History
-```graphql
-query {
-  priceHistory(symbol: "BTC", timeRange: WEEK) {
-    symbol
-    data {
-      timestamp
-      price
-      volume24h
-    }
-  }
-}
-```
-
-#### Get Market Stats
-```graphql
-query {
-  marketStats(symbol: "ETH") {
-    high24h
-    low24h
-    athPrice
-    circulatingSupply
-    totalSupply
-  }
-}
-```
-
-### Mutations
-
-#### Refresh Crypto Data
-```graphql
-mutation {
-  refreshCryptoData(symbol: "BTC") {
-    symbol
-    currentPrice
-    marketCap
-  }
-}
-```
-
-## Features Implementation
-
-### Financial Analytics
-
-1. **Price Tracking**: Real-time price updates with 24h change percentages
-2. **Market Capitalization**: Current market cap with formatted display
-3. **Trading Volume**: 24h trading volume analysis
-4. **Price History**: Historical price data with interactive charts
-5. **All-Time Statistics**: ATH/ATL prices and dates
-6. **Supply Metrics**: Circulating, total, and max supply information
-
-### Data Visualization
-
-- **Area Charts**: Price history with gradient fills
-- **Responsive Design**: Charts adapt to screen size
-- **Multiple Time Ranges**: 24h, 7d, 1m, 1y, all-time views
-- **Tooltips**: Detailed information on hover
-
-### User Interface
-
-- **Clean Design**: Simple, intuitive interface built with Tailwind CSS
-- **Card Components**: Reusable card-based layouts
-- **Table Views**: Sortable market data tables
-- **Loading States**: Smooth loading indicators
-- **Error Handling**: User-friendly error messages
-
-## Deployment
-
-### Local Development
-
-See the [Installation](#installation) section below for local development setup.
-
-### Production Deployment to AWS EKS
-
-Deploy the application to AWS using Kubernetes (EKS) with the domain **cryptoquantlab.com**:
-
-**Quick Start:**
-```bash
-# See infrastructure/QUICK_START.md for rapid deployment
-cd infrastructure/scripts
-./deploy.sh
-```
-
-**Full Guide:**
-- [Complete Deployment Guide](./infrastructure/DEPLOYMENT.md) - Detailed step-by-step instructions
-- [Quick Start Guide](./infrastructure/QUICK_START.md) - Fast track deployment
-
-**Infrastructure Includes:**
-- EKS Cluster with auto-scaling node groups
-- Application Load Balancer with SSL/TLS
-- Route 53 DNS management
-- Multi-AZ deployment for high availability
-- Horizontal pod autoscaling (2-10 pods per service)
-- Health checks and monitoring
-
-**Estimated Cost:**
-- Standard: ~$250-300/month (high availability)
-- Cost-Optimized: ~$90-120/month (recommended for low traffic) ⭐
-
-See [Cost Optimization Guide](./infrastructure/COST_OPTIMIZATION.md) for 60-70% cost savings.
-
-**URLs after deployment:**
-- Frontend: https://cryptoquantlab.com
-- API: https://api.cryptoquantlab.com/graphql
-- GraphQL Playground: https://api.cryptoquantlab.com/graphql
-
-## Data Source
-
-The application uses the **CoinGecko API** to fetch real-time cryptocurrency data. The free tier provides:
-
-- Top 100 cryptocurrencies by market cap
-- Real-time price data
-- Historical price data
-- Market statistics
-- 5-minute cache for optimal performance
-
-## Production Build
-
-### Backend
-```bash
-cd backend
-npm run build
-npm start
-```
-
-### Frontend
-```bash
-cd frontend
-npm run build
-npm run preview
-```
-
-## Environment Variables
-
-### Backend (.env)
-```env
-PORT=4000
-NODE_ENV=development
-COINGECKO_API_KEY=  # Optional, for rate limit increases
-```
-
-### Frontend (.env)
-```env
-VITE_GRAPHQL_URL=http://localhost:4000/graphql
-```
-
-## GitHub Secrets Configuration
-
-For automated deployments via GitHub Actions, configure the following secrets in your GitHub repository settings (Settings → Secrets and variables → Actions):
-
-### Required Secrets
-
-| Secret Name | Description | Example |
-|-------------|-------------|---------|
-| `AWS_ACCESS_KEY_ID` | AWS IAM access key for deployment | `AKIAIOSFODNN7EXAMPLE` |
-| `AWS_SECRET_ACCESS_KEY` | AWS IAM secret access key | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` |
-| `VITE_COGNITO_USER_POOL_ID` | AWS Cognito User Pool ID | `us-east-1_dBsPJ5K4G` |
-| `VITE_COGNITO_CLIENT_ID` | AWS Cognito App Client ID | `687v6ninm2ccb3juaqc6u8gqka` |
-| `VITE_POSTHOG_API_KEY` | PostHog analytics API key | `phc_...` |
-
-### Why Secrets in GitHub Actions?
-
-The `.env.production` file in the repository contains **placeholders only**. Real secrets are:
-1. Stored securely in GitHub Secrets
-2. Injected during the build process (see `.github/workflows/deploy.yml`)
-3. Never committed to the repository
-
-This ensures that:
-- Secrets are not exposed in version control
-- Different environments can use different credentials
-- Secrets can be rotated without code changes
-
-### Setting Up GitHub Secrets
-
-1. Go to your GitHub repository
-2. Navigate to **Settings → Secrets and variables → Actions**
-3. Click **New repository secret**
-4. Add each secret from the table above
-5. Secrets are automatically injected during deployment
-
-## API Rate Limiting
-
-The CoinGecko free API has rate limits:
-- 10-50 calls/minute (depending on endpoint)
-- Data is cached for 5 minutes to minimize API calls
-- Consider upgrading to CoinGecko Pro for higher limits
-
-## Future Enhancements
-
-- [ ] User authentication and watchlists
-- [ ] Portfolio tracking
-- [ ] Price alerts
-- [ ] More advanced charting (candlestick, indicators)
-- [ ] News integration
-- [ ] Multi-currency support
-- [ ] Mobile app version
-- [ ] WebSocket for real-time updates
-
-## Troubleshooting
-
-### Backend won't start
-- Check if port 4000 is available
-
-### Frontend API errors
-- Ensure backend is running on port 4000
-- Check VITE_GRAPHQL_URL in .env
-- Clear browser cache
-
-### Rate limit errors
-- Wait a few minutes before retrying
-- Increase cache time in backend
-- Consider using CoinGecko API key
+For information and education only. CryptoQuantLab is not investment advice and does not recommend buying or selling any asset. Models are estimates from past prices and can be wrong.
 
 ## License
 
 No Public License
-
