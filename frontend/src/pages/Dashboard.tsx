@@ -119,7 +119,7 @@ export const Dashboard: React.FC = () => {
         canonicalUrl="/"
       />
       <div className="space-y-6">
-        <div className="flex justify-between items-center">
+        <div className="flex flex-wrap justify-between items-center gap-4">
           <h1 className="text-3xl font-bold text-gray-900">Cryptocurrency Dashboard</h1>
         <div className="flex gap-2">
           <button
