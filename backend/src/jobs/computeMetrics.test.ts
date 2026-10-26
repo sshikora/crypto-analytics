@@ -1,17 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { computeMetrics } from './computeMetrics';
 import { coinGeckoService } from '../services/coinGeckoService';
-import { computeRiskSummary, RISK_SUMMARY_VERSION, RiskSummary } from '../services/riskService';
+import { computeRiskSummary, loadBenchmarkPrices, RISK_SUMMARY_VERSION, RiskSummary } from '../services/riskService';
 import { saveRiskSummary } from '../repositories/coinMetricsRepository';
 
 vi.mock('../services/coinGeckoService', () => ({ coinGeckoService: { getMarketData: vi.fn() } }));
 vi.mock('../services/riskService', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../services/riskService')>()),
   computeRiskSummary: vi.fn(),
+  loadBenchmarkPrices: vi.fn(),
 }));
 vi.mock('../repositories/coinMetricsRepository', () => ({ saveRiskSummary: vi.fn() }));
 
 const now = new Date('2026-10-26T01:00:00Z');
+const benchmark = [{ date: '2026-10-26', timestamp: 0, price: 80000 }];
 
 function summaryFor(coinId: string, asOf: string | null): RiskSummary {
   return { coinId, asOf, observations: asOf ? 366 : 0 } as RiskSummary;
@@ -23,6 +25,7 @@ describe('computeMetrics', () => {
     vi.mocked(coinGeckoService.getMarketData).mockResolvedValue(
       ['bitcoin', 'ethereum', 'brand-new', 'broken'].map(id => ({ id })) as never
     );
+    vi.mocked(loadBenchmarkPrices).mockResolvedValue(benchmark);
     vi.mocked(computeRiskSummary).mockImplementation(async (coinId) => {
       if (coinId === 'broken') throw new Error('throttled');
       return summaryFor(coinId, coinId === 'brand-new' ? null : '2026-10-26');
@@ -33,7 +36,10 @@ describe('computeMetrics', () => {
     const result = await computeMetrics({ now, retryDelaysMs: [] });
 
     expect(result).toEqual({ coins: 4, written: 2, skipped: ['brand-new'], failed: ['broken'] });
-    expect(computeRiskSummary).toHaveBeenCalledWith('bitcoin', now.getTime());
+    // Bitcoin's prices are loaded once and shared as every coin's beta benchmark
+    expect(loadBenchmarkPrices).toHaveBeenCalledTimes(1);
+    expect(computeRiskSummary).toHaveBeenCalledWith('bitcoin', now.getTime(), benchmark);
+    expect(computeRiskSummary).toHaveBeenCalledWith('ethereum', now.getTime(), benchmark);
     expect(saveRiskSummary).toHaveBeenCalledWith(
       '2026-10-26',
       summaryFor('bitcoin', '2026-10-26'),

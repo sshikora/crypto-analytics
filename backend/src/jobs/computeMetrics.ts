@@ -1,5 +1,5 @@
 import { coinGeckoService } from '../services/coinGeckoService';
-import { computeRiskSummary, RISK_SUMMARY_VERSION } from '../services/riskService';
+import { computeRiskSummary, loadBenchmarkPrices, RISK_SUMMARY_VERSION } from '../services/riskService';
 import { saveRiskSummary } from '../repositories/coinMetricsRepository';
 import { withRetry } from './retry';
 
@@ -25,10 +25,11 @@ export async function computeMetrics(options: MetricsOptions = {}): Promise<Metr
 
   const summary: MetricsSummary = { coins: universe.length, written: 0, skipped: [], failed: [] };
   const computedAt = now.toISOString();
+  const benchmark = await loadBenchmarkPrices(now.getTime());
 
   for (const coin of universe) {
     try {
-      const riskSummary = await computeRiskSummary(coin.id, now.getTime());
+      const riskSummary = await computeRiskSummary(coin.id, now.getTime(), benchmark);
       if (riskSummary.asOf === null) {
         summary.skipped.push(coin.id);
         continue;

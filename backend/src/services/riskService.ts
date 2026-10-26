@@ -4,6 +4,16 @@ import { getDailyPrices, StoredPrice } from '../repositories/priceHistoryReposit
 import { fitGarch11, garchForecastVariance } from '../models/garch';
 import { informationCriteria, ljungBox, normalQqPoints, standardizedResiduals, TestResult } from '../models/garchDiagnostics';
 import { fitHar, harForecastVariance, HarFit } from '../models/har';
+import {
+  annualizedReturn,
+  betaTo,
+  drawdowns,
+  Drawdowns,
+  sharpeRatio,
+  sortinoRatio,
+  worstDays,
+  worstWeek,
+} from '../models/performance';
 import { LinearDependenceError } from '../models/linearRegression';
 import { ewmaVariance, rollingVolatility } from '../models/realizedVolatility';
 import { logReturns, moments, periodsPerYear, simpleReturns } from '../models/returns';
@@ -23,7 +33,7 @@ const cache = new NodeCache({ stdTTL: 3600 });
 
 // Stored summaries carry the version that computed them. Bump this whenever the summary's fields or definitions
 // change, so the API recomputes instead of serving rows in the old shape until the nightly job rewrites them.
-export const RISK_SUMMARY_VERSION = 3;
+export const RISK_SUMMARY_VERSION = 4;
 
 const MS_PER_DAY = 86_400_000;
 const HISTORY_DAYS = 365;
@@ -39,6 +49,10 @@ const MIN_BACKTEST_DAYS = 60;
 const BACKTEST_SIGNIFICANCE = 0.05;
 const MIN_GARCH_RETURNS = 120;
 const LJUNG_BOX_LAGS = 10;
+const MIN_PERFORMANCE_RETURNS = 90;
+const BETA_WINDOWS = [365, 90];
+const WORST_DAYS = 5;
+const BENCHMARK_COIN = 'bitcoin';
 const COIN_ID_PATTERN = /^[a-z0-9-]{1,100}$/;
 
 export interface RealizedVolatility {
@@ -93,6 +107,17 @@ export interface GarchSummary {
   normalQq: { theoretical: number; sample: number }[];
 }
 
+export interface PerformanceSummary {
+  annualizedReturn: number;
+  sharpeRatio: number | null;
+  sortinoRatio: number | null;
+  calmarRatio: number | null;
+  drawdown: Drawdowns;
+  worstDays: { date: string; return: number }[];
+  worstWeek: { startDate: string; endDate: string; return: number };
+  betaToBitcoin: { windowDays: number; observations: number; beta: number; correlation: number }[] | null;
+}
+
 export interface RiskSummary {
   coinId: string;
   asOf: string | null;
@@ -104,6 +129,7 @@ export interface RiskSummary {
   volatilityForecast: VolatilityForecast | null;
   valueAtRisk: ValueAtRiskSummary | null;
   garch: GarchSummary | null;
+  performance: PerformanceSummary | null;
 }
 
 // Volatilities are annualized percentages, like the GARCH model's. Windows count stored observations,
@@ -227,7 +253,44 @@ function garchSummary(prices: StoredPrice[]): GarchSummary | null {
   };
 }
 
-export function summarizeRisk(coinId: string, prices: StoredPrice[]): RiskSummary {
+const finiteOrNull = (x: number) => (Number.isFinite(x) ? x : null);
+
+// Ratios that divide by zero (a flat price, no down days, no drawdown) are reported as null
+function performance(prices: StoredPrice[], benchmark: StoredPrice[]): PerformanceSummary | null {
+  const returns = simpleReturns(prices.map(p => p.price));
+  if (returns.length < MIN_PERFORMANCE_RETURNS) return null;
+
+  const ppy = periodsPerYear(prices.map(p => p.timestamp));
+  const annual = annualizedReturn(prices.map(p => p.price), ppy);
+  const drawdown = drawdowns(prices);
+
+  return {
+    annualizedReturn: annual,
+    sharpeRatio: finiteOrNull(sharpeRatio(returns, ppy)),
+    sortinoRatio: finiteOrNull(sortinoRatio(returns, ppy)),
+    calmarRatio: drawdown.maxDrawdown < 0 ? annual / Math.abs(drawdown.maxDrawdown) : null,
+    drawdown,
+    worstDays: worstDays(prices, WORST_DAYS),
+    worstWeek: worstWeek(prices),
+    betaToBitcoin: betaToBitcoin(prices, benchmark),
+  };
+}
+
+// Returns on the dates both series have, so a gap in either widens that return for both
+function betaToBitcoin(prices: StoredPrice[], benchmark: StoredPrice[]): PerformanceSummary['betaToBitcoin'] {
+  const benchmarkByDate = new Map(benchmark.map(p => [p.date, p.price]));
+  const matched = prices.filter(p => benchmarkByDate.has(p.date));
+  const coin = simpleReturns(matched.map(p => p.price));
+  const btc = simpleReturns(matched.map(p => benchmarkByDate.get(p.date) as number));
+  if (coin.length < MIN_PERFORMANCE_RETURNS || moments(btc).standardDeviation === 0) return null;
+
+  return BETA_WINDOWS.map(windowDays => {
+    const n = Math.min(windowDays, coin.length);
+    return { windowDays, observations: n, ...betaTo(coin.slice(-n), btc.slice(-n)) };
+  });
+}
+
+export function summarizeRisk(coinId: string, prices: StoredPrice[], benchmark: StoredPrice[] = prices): RiskSummary {
   const returns = logReturns(prices.map(p => p.price));
   const annualize = (perPeriod: number) =>
     perPeriod * Math.sqrt(periodsPerYear(prices.map(p => p.timestamp))) * 100;
@@ -257,12 +320,23 @@ export function summarizeRisk(coinId: string, prices: StoredPrice[]): RiskSummar
     volatilityForecast,
     valueAtRisk: valueAtRisk(prices),
     garch: garchSummary(prices),
+    performance: performance(prices, benchmark),
   };
 }
 
-export async function computeRiskSummary(coinId: string, now = Date.now()): Promise<RiskSummary> {
-  const fromDate = new Date(now - HISTORY_DAYS * MS_PER_DAY).toISOString().slice(0, 10);
-  return summarizeRisk(coinId, await getDailyPrices(coinId, fromDate));
+function historyStart(now: number): string {
+  return new Date(now - HISTORY_DAYS * MS_PER_DAY).toISOString().slice(0, 10);
+}
+
+// Bitcoin's prices are the benchmark for beta. A caller computing many coins loads them once and passes them in.
+export async function loadBenchmarkPrices(now = Date.now()): Promise<StoredPrice[]> {
+  return getDailyPrices(BENCHMARK_COIN, historyStart(now));
+}
+
+export async function computeRiskSummary(coinId: string, now = Date.now(), benchmark?: StoredPrice[]): Promise<RiskSummary> {
+  const prices = await getDailyPrices(coinId, historyStart(now));
+  const btc = coinId === BENCHMARK_COIN ? prices : benchmark ?? (await loadBenchmarkPrices(now));
+  return summarizeRisk(coinId, prices, btc);
 }
 
 // The nightly compute-metrics job stores each coin's summary, so a request normally reads one row. It computes on

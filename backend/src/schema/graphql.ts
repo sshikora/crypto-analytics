@@ -140,6 +140,44 @@ export const typeDefs = `
     normalQq: [QqPoint!]!
   }
 
+  type Drawdowns {
+    maxDrawdown: Float!
+    peakDate: String!
+    troughDate: String!
+    recoveryDate: String
+    currentDrawdown: Float!
+    longestDrawdownDays: Int!
+  }
+
+  type DatedReturn {
+    date: String!
+    return: Float!
+  }
+
+  type WorstWeek {
+    startDate: String!
+    endDate: String!
+    return: Float!
+  }
+
+  type Beta {
+    windowDays: Int!
+    observations: Int!
+    beta: Float!
+    correlation: Float!
+  }
+
+  type PerformanceSummary {
+    annualizedReturn: Float!
+    sharpeRatio: Float
+    sortinoRatio: Float
+    calmarRatio: Float
+    drawdown: Drawdowns!
+    worstDays: [DatedReturn!]!
+    worstWeek: WorstWeek!
+    betaToBitcoin: [Beta!]
+  }
+
   type RiskSummary {
     coinId: String!
     asOf: String
@@ -151,6 +189,7 @@ export const typeDefs = `
     volatilityForecast: HarForecast
     valueAtRisk: ValueAtRisk
     garch: GarchSummary
+    performance: PerformanceSummary
   }
 
   enum TimeRange {

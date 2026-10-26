@@ -45,6 +45,19 @@ const garchFixture = JSON.parse(
     forecast: { days: number; annualizedVolatility: number }[];
   };
 };
+const performanceFixture = JSON.parse(
+  readFileSync(join(__dirname, '..', 'test', 'fixtures', 'performance', 'btc_eth_daily.json'), 'utf8')
+) as {
+  dates: string[];
+  timestamps: number[];
+  coins: Record<string, { prices: number[]; annualizedReturn: number; sharpe: number; maxDrawdown: number; worstDays: { date: string }[] }>;
+  ethereumBeta: { days365: { beta: number; correlation: number }; days90: { beta: number } };
+};
+const ethPrices: StoredPrice[] = performanceFixture.coins.ethereum.prices.map((price, i) => ({
+  date: performanceFixture.dates[i],
+  timestamp: performanceFixture.timestamps[i],
+  price,
+}));
 const volFixture = loadFixture<{
   reference: { rollingVolatility: Record<string, (number | null)[]>; ewmaVariance: Record<string, number[]> };
 }>('realized_vol');
@@ -147,6 +160,36 @@ describe('summarizeRisk on the validated BTC sample', () => {
     expect(summarizeRisk('flat', daily(new Array(200).fill(1))).garch).toBeNull();
   });
 
+  it('reports return, risk-adjusted ratios, drawdowns and worst days', () => {
+    const p = summarizeRisk('bitcoin', btcPrices).performance!;
+    const ref = performanceFixture.coins.bitcoin;
+
+    expect(relativeError(p.annualizedReturn, ref.annualizedReturn)).toBeLessThan(1e-12);
+    expect(relativeError(p.sharpeRatio!, ref.sharpe)).toBeLessThan(1e-12);
+    expect(relativeError(p.drawdown.maxDrawdown, ref.maxDrawdown)).toBeLessThan(1e-12);
+    expect(p.worstDays.map(d => d.date)).toEqual(ref.worstDays.map(d => d.date));
+    // Bitcoin is its own benchmark
+    expect(p.betaToBitcoin!.map(b => b.beta)).toEqual([expect.closeTo(1, 12), expect.closeTo(1, 12)]);
+  });
+
+  it("measures another coin's beta to Bitcoin on matching dates", () => {
+    const gappyBtc = btcPrices.filter((_, i) => i !== 100);
+    const beta = summarizeRisk('ethereum', ethPrices, btcPrices).performance!.betaToBitcoin!;
+
+    expect(beta.map(b => [b.windowDays, b.observations])).toEqual([[365, 363], [90, 90]]);
+    expect(relativeError(beta[0].beta, performanceFixture.ethereumBeta.days365.beta)).toBeLessThan(1e-12);
+    expect(relativeError(beta[0].correlation, performanceFixture.ethereumBeta.days365.correlation)).toBeLessThan(1e-12);
+    expect(relativeError(beta[1].beta, performanceFixture.ethereumBeta.days90.beta)).toBeLessThan(1e-12);
+    // A date missing from Bitcoin's history drops out of both series
+    expect(summarizeRisk('ethereum', ethPrices, gappyBtc).performance!.betaToBitcoin![0].observations).toBe(362);
+  });
+
+  it('needs 90 returns for performance, and reports undefined ratios as null', () => {
+    expect(summarizeRisk('btc-short', btcPrices.slice(-90)).performance).toBeNull();
+    const flat = summarizeRisk('flat', daily(new Array(200).fill(1)));
+    expect(flat.performance).toMatchObject({ sharpeRatio: null, sortinoRatio: null, calmarRatio: null, betaToBitcoin: null });
+  });
+
   it('reports the return distribution, date and coverage', () => {
     const expected = returnsFixture.reference.logReturnMoments;
     expect(relativeError(summary.returnDistribution!.skewness, expected.skewness)).toBeLessThan(1e-10);
@@ -213,6 +256,7 @@ describe('summarizeRisk', () => {
       volatilityForecast: null,
       valueAtRisk: null,
       garch: null,
+      performance: null,
     });
   });
 });
@@ -246,19 +290,22 @@ describe('getRiskSummary', () => {
 
     const summary = await getRiskSummary('old-shape');
 
-    expect(getDailyPrices).toHaveBeenCalledTimes(1);
+    // The coin's prices, then Bitcoin's as the beta benchmark
+    expect(vi.mocked(getDailyPrices).mock.calls.map(c => c[0])).toEqual(['old-shape', 'bitcoin']);
     expect(summary.observations).toBe(364);
   });
 
-  it('reads the last 365 days of stored prices once and caches the result', async () => {
+  it("reads the last 365 days of the coin's and Bitcoin's prices once and caches the result", async () => {
     vi.mocked(getDailyPrices).mockResolvedValue(btcPrices);
     const now = Date.UTC(2026, 9, 22, 12);
 
     const first = await getRiskSummary('cache-test-coin', now);
     const second = await getRiskSummary('cache-test-coin', now);
 
-    expect(getDailyPrices).toHaveBeenCalledTimes(1);
-    expect(getDailyPrices).toHaveBeenCalledWith('cache-test-coin', '2025-10-22');
+    expect(vi.mocked(getDailyPrices).mock.calls).toEqual([
+      ['cache-test-coin', '2025-10-22'],
+      ['bitcoin', '2025-10-22'],
+    ]);
     expect(second).toEqual(first);
   });
 

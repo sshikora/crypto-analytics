@@ -71,6 +71,25 @@ export interface RiskSummary {
   } | null;
   valueAtRisk: ValueAtRiskSummary | null;
   garch: GarchSummary | null;
+  performance: PerformanceSummary | null;
+}
+
+export interface PerformanceSummary {
+  annualizedReturn: number;
+  sharpeRatio: number | null;
+  sortinoRatio: number | null;
+  calmarRatio: number | null;
+  drawdown: {
+    maxDrawdown: number;
+    peakDate: string;
+    troughDate: string;
+    recoveryDate: string | null;
+    currentDrawdown: number;
+    longestDrawdownDays: number;
+  };
+  worstDays: { date: string; return: number }[];
+  worstWeek: { startDate: string; endDate: string; return: number };
+  betaToBitcoin: { windowDays: number; observations: number; beta: number; correlation: number }[] | null;
 }
 
 export interface TestResult {
