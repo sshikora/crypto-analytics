@@ -17,6 +17,7 @@ All models run on stored daily closes (00:00 UTC) for the last 365 days. A night
 | GARCH diagnostics | Log-likelihood, AIC and BIC; Ljung-Box (10 lags) on standardized residuals and their squares; residual kurtosis; normal QQ; half-life in days | [`garchDiagnostics.ts`](backend/src/models/garchDiagnostics.ts) |
 | Value at Risk and expected shortfall | One-day, 95% and 99%, by historical simulation, normal, Student-t (maximum likelihood) and GARCH-filtered historical simulation | [`valueAtRisk.ts`](backend/src/models/valueAtRisk.ts) |
 | VaR backtests | Each day's VaR from the 180 returns before it; Kupiec unconditional coverage, Christoffersen independence, conditional coverage | [`varBacktest.ts`](backend/src/models/varBacktest.ts) |
+| Return and drawdown | Geometric annualized return; Sharpe, Sortino and Calmar (risk-free rate 0); maximum, current and longest drawdown; worst days and week; beta and correlation to Bitcoin over a year and 90 days | [`performance.ts`](backend/src/models/performance.ts) |
 | Probability functions | Log-gamma (Lanczos), incomplete gamma and beta (Lentz continued fractions), normal and Student-t pdf, cdf and quantile, chi-square tail | [`distributions.ts`](backend/src/models/distributions.ts) |
 
 ## How the models are validated
@@ -35,6 +36,7 @@ All models run on stored daily closes (00:00 UTC) for the last 365 days. A night
 | Student-t VaR/ES | scipy `t.fit` polished to the maximum | likelihood 1e-8, VaR 1e-6 |
 | GARCH-filtered VaR/ES | the GARCH reference above | about 1e-6, every backtest exception day identical |
 | Kupiec, Christoffersen | scipy chi-square | 1e-10 |
+| Return, drawdown, beta | pandas `cummax`, `nsmallest`, `pct_change`; numpy `cov`, `corrcoef`; scipy `linregress` (1e-12) | 1e-12, every date identical |
 
 The validation turned up real bugs:
 
@@ -46,6 +48,7 @@ The validation turned up real bugs:
 - **Distribution:** daily volatility 2.30%, about 44% annualized. Skewness −0.25, excess kurtosis 6.8.
 - **GARCH:** α = 0.19, β = 0.64, half-life 3.6 days. Ljung-Box finds no remaining autocorrelation (p = 0.62) or clustering (p = 0.37) in the standardized residuals, but their excess kurtosis is still 2.6.
 - **HAR-RV:** R² 0.13. Only the daily component is significant (HAC t = 4.5).
+- **Return and drawdown:** −23.0% over the year; Sharpe −0.38, Sortino −0.54. Maximum drawdown −48.8% from 2025-10-27 to 2026-07-01, not recovered. Worst day −14.1% on 2026-02-06. Ethereum's beta to Bitcoin is 1.26, correlation 0.91.
 
 | 95% one-day VaR, 183 test days | VaR | ES | Exceptions (9.2 expected) | Kupiec p |
 |---|---|---|---|---|
@@ -159,7 +162,6 @@ Data provided by CoinGecko.
 
 - 10-day VaR, which needs Monte Carlo simulation.
 - Regime detection.
-- Drawdown and return-risk ratios, and beta to Bitcoin.
 - Risk columns on the Markets page.
 - A Methodology page with the derivations.
 
