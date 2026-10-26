@@ -24,7 +24,7 @@ export const RegimeBadge: React.FC<RegimeBadgeProps> = ({ regime, compact = fals
     `Price is ${Math.abs((regime.priceToMovingAverage - 1) * 100).toFixed(1)}% ` +
     `${regime.priceToMovingAverage >= 1 ? 'above' : 'below'} its 200-day average. ` +
     `30-day volatility is at least as high as on ${percentile}% of days in the past year.`;
-  const className = `inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${LEVEL_STYLES[regime.volatilityLevel]}`;
+  const className = `inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${LEVEL_STYLES[regime.volatilityLevel]}`;
 
   if (compact) {
     return (
