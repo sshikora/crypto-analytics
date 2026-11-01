@@ -53,8 +53,9 @@ const NotificationBell = () => {
         )}
       </button>
 
+      {/* On phones the panel spans the screen; a 384px dropdown anchored to the bell would run off the left edge */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-96 max-h-[80vh] z-50">
+        <div className="fixed inset-x-4 top-16 sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 mt-2 sm:w-96 max-h-[80vh] z-50">
           <NotificationCenter onClose={() => setIsOpen(false)} />
         </div>
       )}
