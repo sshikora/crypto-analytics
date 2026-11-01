@@ -200,6 +200,36 @@ export const typeDefs = `
     rows: [MarketRiskRow!]!
   }
 
+  type RegimeState {
+    name: String!
+    dailyMean: Float!
+    annualizedVolatility: Float!
+    stayProbability: Float!
+    expectedDays: Float!
+    longRunShare: Float!
+  }
+
+  type RegimeModelHistory {
+    dates: [String!]!
+    filtered: [Float!]!
+    smoothed: [Float!]!
+  }
+
+  type RegimeModel {
+    coinId: String!
+    asOf: String!
+    observations: Int!
+    logLikelihood: Float!
+    aic: Float!
+    bic: Float!
+    oneStateBic: Float!
+    supported: Boolean!
+    states: [RegimeState!]!
+    turbulentProbability: Float!
+    nextDayTurbulentProbability: Float!
+    history: RegimeModelHistory!
+  }
+
   type RiskSummary {
     coinId: String!
     asOf: String
@@ -327,6 +357,7 @@ export const typeDefs = `
     topCryptocurrencies(limit: Int): [Cryptocurrency!]!
     riskSummary(coinId: String!): RiskSummary!
     marketRisk: MarketRisk
+    regimeModel(coinId: String!): RegimeModel
     userPreferences(userId: String!): UserPreferences
 
     # Notification Queries

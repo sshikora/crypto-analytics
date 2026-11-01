@@ -1,12 +1,12 @@
 # CryptoQuantLab
 
-Risk analytics for the 100 largest cryptocurrencies: realized and forecast volatility, GARCH with diagnostics, and one-day Value at Risk and expected shortfall with out-of-sample backtests. Every model is implemented in TypeScript and checked against an independent Python reference built on numpy, scipy, statsmodels and `arch`.
+Risk analytics for the 100 largest cryptocurrencies: realized and forecast volatility, GARCH with diagnostics, one-day Value at Risk and expected shortfall with out-of-sample backtests, and regimes. The models are implemented in TypeScript and checked against an independent Python reference built on numpy, scipy, statsmodels and `arch`. The hidden Markov model is fitted in Python by a nightly job and checked against hmmlearn and statsmodels.
 
 **Live:** https://cryptoquantlab.com — open any coin and choose the **Risk** tab. The [Markets page](https://cryptoquantlab.com/markets) sorts the top 100 by volatility, drawdown and VaR, and shows each coin's regime. The [Methodology page](https://cryptoquantlab.com/methodology) has every model's formulas, assumptions, validation and references, next to today's numbers for Bitcoin.
 
 ## What it computes
 
-All models run on stored daily closes (00:00 UTC) for the last 365 days. A nightly job computes them for each coin and the API serves the stored result.
+All models run on stored daily closes (00:00 UTC) for the last 365 days. Nightly jobs compute them for each coin and the API serves the stored result.
 
 | Model | Method | Code |
 |---|---|---|
@@ -18,14 +18,15 @@ All models run on stored daily closes (00:00 UTC) for the last 365 days. A night
 | Value at Risk and expected shortfall | One-day, 95% and 99%, by historical simulation, normal, Student-t (maximum likelihood) and GARCH-filtered historical simulation | [`valueAtRisk.ts`](backend/src/models/valueAtRisk.ts) |
 | VaR backtests | Each day's VaR from the 180 returns before it; Kupiec unconditional coverage, Christoffersen independence, conditional coverage | [`varBacktest.ts`](backend/src/models/varBacktest.ts) |
 | Return and drawdown | Geometric annualized return; Sharpe, Sortino and Calmar (risk-free rate 0); maximum, current and longest drawdown; worst days and week; beta and correlation to Bitcoin over a year and 90 days | [`performance.ts`](backend/src/models/performance.ts) |
-| Regime | Threshold states, not a hidden Markov model. Trend: the latest close against its 200-day simple moving average. Volatility level: the latest 30-day volatility's percentile among the year's 30-day windows, low below the 33rd and high above the 67th | [`regime.ts`](backend/src/models/regime.ts) |
+| Regime | Threshold states, shown as a badge. Trend: the latest close against its 200-day simple moving average. Volatility level: the latest 30-day volatility's percentile among the year's 30-day windows, low below the 33rd and high above the 67th | [`regime.ts`](backend/src/models/regime.ts) |
+| Hidden Markov model | Two Gaussian states on daily log returns, fitted by EM from ten starts in Python. Filtered and smoothed state probabilities, expected durations, and BIC against a single normal | [`hmm.py`](batch/cql_batch/hmm.py) |
 | Probability functions | Log-gamma (Lanczos), incomplete gamma and beta (Lentz continued fractions), normal and Student-t pdf, cdf and quantile, chi-square tail | [`distributions.ts`](backend/src/models/distributions.ts) |
 
 ## How the models are validated
 
 [`validation/`](validation/) is a small Python package with a reference implementation of each model, written from the formulas. A script per model runs the reference on a fixed year of Bitcoin closes, compares it with a standard library, and writes a JSON fixture. It stops instead of writing the fixture if the two disagree. The TypeScript tests then compare against the fixture.
 
-| Model | Reference checked against | TypeScript matches the reference to |
+| Model | Reference checked against | Matches the reference to |
 |---|---|---|
 | Returns, moments | scipy, pandas (1e-12) | 1e-14 (returns), 1e-10 (moments) |
 | Rolling and EWMA volatility | pandas `rolling().std()`, `ewm()` (1e-12) | 1e-12 |
@@ -39,6 +40,7 @@ All models run on stored daily closes (00:00 UTC) for the last 365 days. A night
 | Kupiec, Christoffersen | scipy chi-square | 1e-10 |
 | Return, drawdown, beta | pandas `cummax`, `nsmallest`, `pct_change`; numpy `cov`, `corrcoef`; scipy `linregress` (1e-12) | 1e-12, every date identical |
 | Regime | pandas `rolling().mean()`, `rolling().std()`, `rank(pct=True)` (1e-12) | 1e-12, trend and level identical, 12 cases across Bitcoin and Ethereum |
+| Hidden Markov model, in Python | Enumerating every state path; hmmlearn; statsmodels `MarkovRegression` | Recursions 1e-12, EM iterates 1e-9, likelihood 1e-9; 20 statsmodels restarts find nothing higher |
 
 The validation turned up real bugs:
 
@@ -52,6 +54,7 @@ The validation turned up real bugs:
 - **HAR-RV:** R² 0.13. Only the daily component is significant (HAC t = 4.5).
 - **Return and drawdown:** −23.0% over the year; Sharpe −0.38, Sortino −0.54. Maximum drawdown −48.8% from 2025-10-27 to 2026-07-01, not recovered. Worst day −14.1% on 2026-02-06. Ethereum's beta to Bitcoin is 1.26, correlation 0.91.
 - **Regime:** uptrend, with the price 1.14× its 200-day average. Volatility level low, with 30-day volatility at the 25th percentile.
+- **Hidden Markov model:** a calm state at 31% annualized volatility lasting about 15 days, and a turbulent state at 83% lasting about 3 days. BIC −1740 against −1698 for one normal.
 
 | 95% one-day VaR, 183 test days | VaR | ES | Exceptions (9.2 expected) | Kupiec p |
 |---|---|---|---|---|
@@ -62,14 +65,28 @@ The validation turned up real bugs:
 
 Across the 93 coins with enough history, the 95% backtest passes for 86 with GARCH-filtered simulation, 80 historical, 69 Student-t and 58 normal.
 
+### Why the hidden Markov model didn't replace the badge
+
+The original plan was for this model to replace the threshold badge, and a walk-forward test didn't support that. Each coin's model was refitted weekly on the previous 180 returns and scored on the following days, using only data available at the time. These are the 82 coins with daily volatility of at least 0.5%:
+
+| Next day | Hidden Markov | Threshold percentile |
+|---|---|---|
+| Move after the high state vs the low state, median ratio | 1.47× | 1.43× |
+| Correlation with the size of the move, median | 0.11 | 0.16 |
+
+Its one-day distribution is better, beating a normal with constant variance for 77 of those coins and with EWMA variance for 69, although a mixture's fatter tails explain at least part of that. It doesn't predict the size of the next move better than the simpler percentile, so the badge stayed and the model has its own panel.
+
+Simulating a year from the fitted Bitcoin model shows what a year can identify. State volatilities are good to 6–14%, the turbulent state's stay probability has a 90% range of about 0.4 to 0.85, and the state means can't be told apart, so the states say nothing about direction.
+
 ### Notebooks
 
-Two notebooks in [`validation/notebooks/`](validation/notebooks/) write up the main models in full, with their outputs:
+Three notebooks in [`validation/notebooks/`](validation/notebooks/) write up the main models in full, with their outputs:
 
 - [`garch.ipynb`](validation/notebooks/garch.ipynb): the data's fat tails; the model and likelihood; estimation compared with `arch`; the likelihood surface; a simulation study of how well a year of data identifies the parameters; diagnostics; forecasts; limitations.
 - [`value_at_risk.ipynb`](validation/notebooks/value_at_risk.ipynb): the four VaR and ES methods; the Student-t fit; rolling out-of-sample VaR with every exception marked; Kupiec and Christoffersen tests; the power of a one-year backtest; limitations.
+- [`hmm.ipynb`](validation/notebooks/hmm.ipynb): the model and recursions; the fit compared with statsmodels; filtered and smoothed probabilities; how many states; what a year identifies; a walk-forward test against GARCH, EWMA and a threshold; limitations.
 
-`uv run scripts/build_notebooks.py` regenerates and re-executes both.
+`uv run scripts/build_notebooks.py` regenerates and re-executes all three.
 
 ### Running the validation
 
@@ -79,7 +96,7 @@ uv sync
 uv run scripts/make_var_fixtures.py      # one script per model; each prints its results
 ```
 
-The fixtures land in `backend/src/test/fixtures/`. The sample data is CoinGecko's daily Bitcoin series, in `validation/data/`.
+The fixtures land in `backend/src/test/fixtures/`. The sample data is CoinGecko's daily Bitcoin and Ethereum series, in `validation/data/`, with the hidden Markov model's per-coin results in `hmm_cross_section.csv`. The hidden Markov model's tests run with `uv run pytest` in `batch/`.
 
 ## Architecture
 
@@ -89,6 +106,7 @@ flowchart LR
   SCH[EventBridge Scheduler]
   ING["ingest-prices<br/>Fargate task, 00:30 UTC"]
   CM["compute-metrics<br/>Fargate task, 01:00 UTC"]
+  FR["fit-regimes<br/>Python on Fargate, 01:30 UTC"]
   PH[("DynamoDB<br/>price-history")]
   MET[("DynamoDB<br/>coin-metrics")]
   API["GraphQL API<br/>Express + Yoga on Fargate"]
@@ -97,7 +115,9 @@ flowchart LR
 
   SCH --> ING
   SCH --> CM
+  SCH --> FR
   CG --> ING --> PH --> CM --> MET
+  PH --> FR --> MET
   MET --> API
   PH --> API
   CG -->|live prices, cached| API
@@ -109,17 +129,18 @@ flowchart LR
 - **Nightly pipeline.**
   - `ingest-prices` stores the midnight close, market cap and volume for the top 100 coins. A coin new to the top 100 gets a year of history in one run.
   - `compute-metrics` runs every model above for each coin and stores the result, plus one snapshot row of every coin's headline numbers for the Markets table.
+  - `fit-regimes` fits the hidden Markov model for each coin. It runs from its own Python image, takes its coin list from that snapshot, and gets no secrets.
   - Each job has a missed-run and a failed-run alarm.
 - **API.**
   - `riskSummary(coinId)` reads the stored result, and computes on request only for a coin the job hasn't covered yet. Each stored row carries a version, so a deploy that changes the summary never serves rows in the old shape.
-  - `marketRisk` serves the nightly snapshot and never computes on request, because 100 coins are too many.
+  - `marketRisk` serves the nightly snapshot and `regimeModel(coinId)` serves the stored fit. Neither computes on request.
   - Signed-in users set moving-average crossover alerts. A 5-minute check records each trigger with a conditional write, so overlapping tasks during a deploy can't send duplicates, then emails the user's verified Cognito address.
 - **Edge.** The API sits behind CloudFront and AWS WAF, and the load balancer accepts only CloudFront traffic.
 - **Infrastructure as code.**
   - Everything is in OpenTofu under [`infrastructure/terraform`](infrastructure/terraform).
   - GitHub Actions deploys on every merge to `master` through OIDC, with no long-lived AWS keys, one deploy at a time.
   - Infrastructure changes are planned and reviewed before they're applied.
-- **Monitoring.** CloudWatch alarms cover site and API health, 5xx errors, CPU and memory, the alert checker and both jobs. Each alarm's email says what it means, how urgent it is, and the first commands to run.
+- **Monitoring.** CloudWatch alarms cover site and API health, 5xx errors, CPU and memory, the alert checker and all three jobs. Each alarm's email says what it means, how urgent it is, and the first commands to run.
 
 ## Repository layout
 
@@ -134,9 +155,13 @@ backend/
 frontend/
   src/pages/         Dashboard, Markets, Methodology, coin page (Overview and Risk tabs)
   src/components/    MetricCard, ValueAtRiskPanel, GarchPanel, charts
+batch/
+  cql_batch/         Hidden Markov model and the nightly fit-regimes job
+  tests/             Checks against path enumeration, hmmlearn and statsmodels
 validation/
   cql_validation/    Python reference implementations
   scripts/           One fixture script per model
+  notebooks/         Write-ups with outputs
 infrastructure/terraform/
   modules/           vpc, backend_service, api_cdn, frontend_cdn, data, scheduled_jobs,
                      monitoring, cognito, email, route53, github_oidc
@@ -161,7 +186,7 @@ npm run dev                                   # http://localhost:3000
 
 Keep the crossover checker off locally if `.env` points at shared tables, or it can send real alerts.
 
-Tests run with `npm run test:run` in `backend/` and in `frontend/`.
+Tests run with `npm run test:run` in `backend/` and in `frontend/`, and `uv run pytest` in `batch/`.
 
 ## Data
 
@@ -174,7 +199,6 @@ Data provided by CoinGecko.
 ## Not yet built
 
 - 10-day VaR, which needs Monte Carlo simulation.
-- A hidden Markov regime model to replace the thresholds.
 
 ## Disclaimer
 

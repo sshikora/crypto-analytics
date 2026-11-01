@@ -1,13 +1,17 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getMarketRisk, getRiskSummary, marketRiskRow, RISK_SUMMARY_VERSION, summarizeRisk } from './riskService';
-import { getLatestMarketSnapshot, getLatestRiskSummary } from '../repositories/coinMetricsRepository';
+import { getMarketRisk, getRegimeModel, getRiskSummary, marketRiskRow, RegimeModel, RISK_SUMMARY_VERSION, summarizeRisk } from './riskService';
+import { getLatestMarketSnapshot, getLatestRegimeModel, getLatestRiskSummary } from '../repositories/coinMetricsRepository';
 import { getDailyPrices, StoredPrice } from '../repositories/priceHistoryRepository';
 import { harForecastVariance } from '../models/har';
 
 vi.mock('../repositories/priceHistoryRepository', () => ({ getDailyPrices: vi.fn() }));
-vi.mock('../repositories/coinMetricsRepository', () => ({ getLatestRiskSummary: vi.fn(), getLatestMarketSnapshot: vi.fn() }));
+vi.mock('../repositories/coinMetricsRepository', () => ({
+  getLatestRiskSummary: vi.fn(),
+  getLatestMarketSnapshot: vi.fn(),
+  getLatestRegimeModel: vi.fn(),
+}));
 vi.mock('../models/har', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../models/har')>();
   return { ...actual, harForecastVariance: vi.fn(actual.harForecastVariance) };
@@ -346,6 +350,32 @@ describe('getRiskSummary', () => {
     await expect(getRiskSummary('Bitcoin; DROP')).rejects.toThrow('Invalid coin id');
     await expect(getRiskSummary('x'.repeat(101))).rejects.toThrow('Invalid coin id');
     expect(getDailyPrices).not.toHaveBeenCalled();
+  });
+});
+
+describe('getRegimeModel', () => {
+  beforeEach(() => {
+    vi.mocked(getLatestRegimeModel).mockReset();
+  });
+
+  it('rejects an id that is not a coin id, so it can never reach another key', async () => {
+    await expect(getRegimeModel('__market__')).rejects.toThrow('Invalid coin id');
+    expect(getLatestRegimeModel).not.toHaveBeenCalled();
+  });
+
+  it('returns null for a coin with no fit and looks again next time', async () => {
+    vi.mocked(getLatestRegimeModel).mockResolvedValue(null);
+    await expect(getRegimeModel('no-fit-yet')).resolves.toBeNull();
+    await expect(getRegimeModel('no-fit-yet')).resolves.toBeNull();
+    expect(getLatestRegimeModel).toHaveBeenCalledTimes(2);
+  });
+
+  it('caches a stored fit', async () => {
+    const model = { coinId: 'cached-coin', asOf: '2026-11-01', supported: true } as RegimeModel;
+    vi.mocked(getLatestRegimeModel).mockResolvedValue(model);
+    await expect(getRegimeModel('cached-coin')).resolves.toEqual(model);
+    await expect(getRegimeModel('cached-coin')).resolves.toEqual(model);
+    expect(getLatestRegimeModel).toHaveBeenCalledTimes(1);
   });
 });
 

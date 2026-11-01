@@ -4,9 +4,9 @@ import { useQuery } from '@apollo/client';
 import { Formula } from '../components/Formula';
 import { Disclaimer } from '../components/Disclaimer';
 import { SEO } from '../components/SEO';
-import { GET_RISK_SUMMARY } from '../services/queries';
+import { GET_REGIME_MODEL, GET_RISK_SUMMARY } from '../services/queries';
 import { track } from '../services/analytics';
-import { RiskSummary } from '../types/crypto';
+import { RegimeModel, RiskSummary } from '../types/crypto';
 
 const SOURCE = 'https://github.com/sshikora/crypto-analytics/blob/master';
 
@@ -19,6 +19,7 @@ const SECTIONS = [
   { id: 'backtesting', title: 'VaR backtesting' },
   { id: 'performance', title: 'Return, drawdown and beta' },
   { id: 'regime', title: 'Regime' },
+  { id: 'hidden-markov', title: 'Hidden Markov model' },
   { id: 'validation', title: 'How the models are validated' },
   { id: 'references', title: 'References' },
 ] as const;
@@ -68,13 +69,15 @@ export default function Methodology() {
   const location = useLocation();
   const { data } = useQuery(GET_RISK_SUMMARY, { variables: { coinId: 'bitcoin' } });
   const btc: RiskSummary | undefined = data?.riskSummary;
+  const { data: regimeData } = useQuery(GET_REGIME_MODEL, { variables: { coinId: 'bitcoin' } });
+  const btcRegime: RegimeModel | undefined = regimeData?.regimeModel ?? undefined;
 
   useEffect(() => {
     track('view_methodology', { section: location.hash.slice(1) || 'top' });
   }, [location.hash]);
 
   // The live panels arrive after the first render and push later sections down, so scroll again once they load
-  const liveLoaded = Boolean(btc);
+  const liveLoaded = [btc, btcRegime].filter(Boolean).length;
   useEffect(() => {
     if (location.hash) document.getElementById(location.hash.slice(1))?.scrollIntoView();
   }, [location.hash, liveLoaded]);
@@ -336,15 +339,14 @@ export default function Methodology() {
                 <Formula tex="\text{trend} = \begin{cases} \text{up} & P_n > \frac{1}{200}\sum_{i=n-199}^{n} P_i \\ \text{down} & \text{otherwise} \end{cases}" />
               </li>
               <li>
-                <strong>Volatility level</strong> ranks the latest 30-day realized volatility among every 30-day window in
-                the coin's stored history: below the 33rd percentile is low, above the 67th is high.
+                <strong>Volatility level</strong> ranks the latest 30-day realized volatility among every 30-day window
+                in the past year: below the 33rd percentile is low, above the 67th is high.
                 <Formula tex="p = \frac{1}{m}\sum_{j=1}^{m} \mathbf{1}\left[\hat\sigma_{30,j} \le \hat\sigma_{30,m}\right]" />
               </li>
             </ul>
             <p className="text-sm text-gray-600">
               Both are relative to the coin itself, so a stablecoin can be in high volatility for a stablecoin. Coins
-              with fewer than 200 closes, or a price that never moved, get no regime. A two- or three-state hidden Markov
-              model is planned to replace these thresholds.
+              with fewer than 200 closes, or a price that never moved, get no regime.
             </p>
             <Live summary={btc}>
               {s =>
@@ -359,12 +361,100 @@ export default function Methodology() {
             </Live>
           </Section>
 
+          <Section
+            id="hidden-markov"
+            title="Hidden Markov model"
+            code={['batch/cql_batch/hmm.py', 'batch/cql_batch/fit_regimes.py']}
+          >
+            <p>
+              A two-state model of daily log returns, shown in its own panel on the Risk tab. Each day is in a calm or a
+              turbulent state with its own normal distribution, and the state follows a Markov chain. It is the one model
+              fitted in Python, by a nightly job with its own container.
+            </p>
+            <Formula tex="r_t \mid S_t = j \sim N(\mu_j, \sigma_j^2)" />
+            <Formula tex="P(S_{t+1} = j \mid S_t = i) = a_{ij}" />
+            <p>
+              The forward recursion gives the likelihood, summing over every path of states, and its output is the{' '}
+              <strong>filtered</strong> probability, which uses only returns up to that day:
+            </p>
+            <Formula tex="\alpha_t(j) = \frac{b_j(r_t) \sum_i \alpha_{t-1}(i)\, a_{ij}}{c_t}" />
+            <Formula tex="\log L = \sum_{t=1}^{n} \log c_t" />
+            <p>
+              Parameters are fitted by expectation-maximization from ten starts, keeping the highest likelihood. Each
+              state's variance is floored at 0.1% of the sample variance, because the likelihood is otherwise unbounded as
+              a state collapses onto a few similar returns. The backward recursion adds later data to give the{' '}
+              <strong>smoothed</strong> probability, the thin line on the chart.
+            </p>
+            <ul className="list-disc pl-5 space-y-2">
+              <li>
+                <strong>Two states</strong> are fixed because BIC prefers two for 79 of 102 coins, three for 18 and one for
+                5. Where two states don't beat one normal by BIC, the panel says so and shows no state.
+              </li>
+              <li>
+                <strong>The states describe volatility, not direction.</strong> Simulating a year from the fitted Bitcoin
+                model, the turbulent state's mean has a standard error about five times the estimate. Volatilities are
+                identified to within 6–14%, while the turbulent state's stay probability has a 90% range of about 0.4 to
+                0.85.
+              </li>
+            </ul>
+            <p>
+              <strong>Why it doesn't replace the badge.</strong> Each coin's model was refitted weekly on the previous 180
+              returns and scored on the following days, using only data available at the time. Among the 82 coins with
+              daily volatility of at least 0.5%:
+            </p>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs text-gray-500">
+                    <th className="pr-4 py-1 font-medium">Next day</th>
+                    <th className="pr-4 py-1 font-medium">Hidden Markov</th>
+                    <th className="py-1 font-medium">Threshold percentile</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    ['Move after high vs low state (median ratio)', '1.47×', '1.43×'],
+                    ['Correlation with the size of the move (median)', '0.11', '0.16'],
+                  ].map(([measure, model, threshold]) => (
+                    <tr key={measure} className="border-t border-gray-100">
+                      <td className="pr-4 py-1">{measure}</td>
+                      <td className="pr-4 py-1">{model}</td>
+                      <td className="py-1">{threshold}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p>
+              Its one-day distribution is better: it beats a normal with constant variance for 77 of those coins and with
+              EWMA variance for 69, though a mixture's fatter tails explain at least part of that. It does not predict the
+              size of the next move better than the simpler percentile, so the badge stays.
+            </p>
+            <p className="text-sm text-gray-600">
+              Limits: normal within each state, so a one-off large move reads as a switch; time in a state is geometric;
+              and the chart's history uses this year's parameters, so it is not a true out-of-sample record.
+            </p>
+            {btcRegime?.supported && (
+              <div className="rounded-lg bg-gray-50 p-3 text-sm">
+                <p className="text-xs font-medium text-gray-500 mb-2">Live on Bitcoin, daily closes up to {btcRegime.asOf}</p>
+                <p>
+                  {pct(btcRegime.turbulentProbability, 0)} chance of the turbulent state · calm{' '}
+                  {pct(btcRegime.states[0].annualizedVolatility, 0)} volatility, about{' '}
+                  {btcRegime.states[0].expectedDays.toFixed(0)} days · turbulent{' '}
+                  {pct(btcRegime.states[1].annualizedVolatility, 0)} volatility, about{' '}
+                  {btcRegime.states[1].expectedDays.toFixed(1)} days
+                </p>
+              </div>
+            )}
+          </Section>
+
           <Section id="validation" title="How the models are validated">
             <p>
               Each model has a reference implementation in Python, written from the formulas above. A script runs it on a
               fixed year of Bitcoin closes, compares it with a standard library and refuses to write a fixture if they
               disagree. The TypeScript tests then compare against the fixture. Each model was also run over every stored
-              coin to catch cases the Bitcoin sample never reaches, such as stablecoins whose price barely moves.
+              coin to catch cases the Bitcoin sample never reaches, such as stablecoins whose price barely moves. The
+              hidden Markov model runs in Python, so it is compared directly with independent libraries.
             </p>
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
@@ -372,7 +462,7 @@ export default function Methodology() {
                   <tr className="text-left text-xs text-gray-500">
                     <th className="pr-4 py-1 font-medium">Model</th>
                     <th className="pr-4 py-1 font-medium">Reference checked against</th>
-                    <th className="py-1 font-medium">TypeScript matches the reference to</th>
+                    <th className="py-1 font-medium">Matches to</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -389,6 +479,7 @@ export default function Methodology() {
                     ['Kupiec, Christoffersen', 'scipy chi-square', '1e-10'],
                     ['Return, drawdown, beta', 'pandas, numpy, scipy linregress', '1e-12'],
                     ['Regime', 'pandas rolling mean, rolling std and rank', '1e-12'],
+                    ['Hidden Markov', 'enumerating every state path; hmmlearn; statsmodels', 'recursions 1e-12, EM steps 1e-9, likelihood 1e-9'],
                   ].map(([model, against, tolerance]) => (
                     <tr key={model} className="border-t border-gray-100">
                       <td className="pr-4 py-1">{model}</td>
@@ -412,20 +503,29 @@ export default function Methodology() {
               <a href={`${SOURCE}/validation/notebooks/value_at_risk.ipynb`} className="text-primary-600 hover:text-primary-700 font-mono">
                 value_at_risk.ipynb
               </a>
+              ,{' '}
+              <a href={`${SOURCE}/validation/notebooks/hmm.ipynb`} className="text-primary-600 hover:text-primary-700 font-mono">
+                hmm.ipynb
+              </a>
             </p>
           </Section>
 
           <Section id="references" title="References">
             <ol className="list-decimal pl-5 space-y-1 text-sm text-gray-700">
               <li>Barone-Adesi, G., Giannopoulos, K. and Vosper, L. (1999). VaR without correlations for portfolios of derivative securities. <em>Journal of Futures Markets</em>, 19(5), 583–602.</li>
+              <li>Baum, L. E., Petrie, T., Soules, G. and Weiss, N. (1970). A maximization technique occurring in the statistical analysis of probabilistic functions of Markov chains. <em>Annals of Mathematical Statistics</em>, 41(1), 164–171.</li>
               <li>Bollerslev, T. (1986). Generalized autoregressive conditional heteroskedasticity. <em>Journal of Econometrics</em>, 31(3), 307–327.</li>
               <li>Christoffersen, P. F. (1998). Evaluating interval forecasts. <em>International Economic Review</em>, 39(4), 841–862.</li>
               <li>Corsi, F. (2009). A simple approximate long-memory model of realized volatility. <em>Journal of Financial Econometrics</em>, 7(2), 174–196.</li>
+              <li>Dempster, A. P., Laird, N. M. and Rubin, D. B. (1977). Maximum likelihood from incomplete data via the EM algorithm. <em>Journal of the Royal Statistical Society B</em>, 39(1), 1–38.</li>
+              <li>Hamilton, J. D. (1989). A new approach to the economic analysis of nonstationary time series and the business cycle. <em>Econometrica</em>, 57(2), 357–384.</li>
               <li>J.P. Morgan/Reuters (1996). <em>RiskMetrics — Technical Document</em>, 4th edition.</li>
               <li>Kupiec, P. H. (1995). Techniques for verifying the accuracy of risk measurement models. <em>Journal of Derivatives</em>, 3(2), 73–84.</li>
               <li>Lanczos, C. (1964). A precision approximation of the gamma function. <em>SIAM Journal on Numerical Analysis, Series B</em>, 1, 86–96.</li>
               <li>Ljung, G. M. and Box, G. E. P. (1978). On a measure of lack of fit in time series models. <em>Biometrika</em>, 65(2), 297–303.</li>
               <li>Press, W. H., Teukolsky, S. A., Vetterling, W. T. and Flannery, B. P. (2007). <em>Numerical Recipes</em>, 3rd edition. Cambridge University Press.</li>
+              <li>Rabiner, L. R. (1989). A tutorial on hidden Markov models and selected applications in speech recognition. <em>Proceedings of the IEEE</em>, 77(2), 257–286.</li>
+              <li>Schwarz, G. (1978). Estimating the dimension of a model. <em>Annals of Statistics</em>, 6(2), 461–464.</li>
               <li>Sharpe, W. F. (1966). Mutual fund performance. <em>Journal of Business</em>, 39(1), 119–138.</li>
               <li>Sortino, F. A. and van der Meer, R. (1991). Downside risk. <em>Journal of Portfolio Management</em>, 17(4), 27–31.</li>
             </ol>

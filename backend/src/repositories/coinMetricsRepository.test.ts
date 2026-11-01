@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getLatestMarketSnapshot, getLatestRiskSummary, saveMarketSnapshot, saveRiskSummary } from './coinMetricsRepository';
+import {
+  getLatestMarketSnapshot,
+  getLatestRegimeModel,
+  getLatestRiskSummary,
+  saveMarketSnapshot,
+  saveRiskSummary,
+} from './coinMetricsRepository';
 import { dynamodb } from '../db/dynamodb';
 import type { RiskSummary } from '../services/riskService';
 
@@ -25,6 +31,22 @@ describe('coinMetricsRepository', () => {
       computedAt: '2026-10-25T01:00:00.000Z',
       riskSummary: summary,
     });
+  });
+
+  it("reads a coin's newest regime model from its own key and parses it", async () => {
+    vi.mocked(dynamodb.send).mockResolvedValue({ Items: [{ regimeModel: '{"coinId":"bitcoin","supported":true}' }] } as never);
+
+    await expect(getLatestRegimeModel('bitcoin')).resolves.toEqual({ coinId: 'bitcoin', supported: true });
+
+    const input = vi.mocked(dynamodb.send).mock.calls[0][0].input as any;
+    expect(input.ExpressionAttributeValues[':coinId']).toBe('__hmm__bitcoin');
+    expect(input.ScanIndexForward).toBe(false);
+    expect(input.Limit).toBe(1);
+  });
+
+  it('returns null when a coin has no regime model', async () => {
+    vi.mocked(dynamodb.send).mockResolvedValue({ Items: [] } as never);
+    await expect(getLatestRegimeModel('new-coin')).resolves.toBeNull();
   });
 
   it('reads the newest row for a coin', async () => {

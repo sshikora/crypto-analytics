@@ -239,6 +239,36 @@ export const GET_REGIME = gql`
   }
 `;
 
+export const GET_REGIME_MODEL = gql`
+  query GetRegimeModel($coinId: String!) {
+    regimeModel(coinId: $coinId) {
+      coinId
+      asOf
+      observations
+      logLikelihood
+      aic
+      bic
+      oneStateBic
+      supported
+      states {
+        name
+        dailyMean
+        annualizedVolatility
+        stayProbability
+        expectedDays
+        longRunShare
+      }
+      turbulentProbability
+      nextDayTurbulentProbability
+      history {
+        dates
+        filtered
+        smoothed
+      }
+    }
+  }
+`;
+
 export const GET_MARKET_RISK = gql`
   query GetMarketRisk {
     marketRisk {
