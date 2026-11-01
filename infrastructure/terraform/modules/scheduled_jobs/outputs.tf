@@ -3,6 +3,11 @@ output "task_definition_families" {
   value       = { for k, td in aws_ecs_task_definition.job : k => td.family }
 }
 
+output "batch_repository_name" {
+  description = "ECR repository for the Python batch image"
+  value       = aws_ecr_repository.batch.name
+}
+
 output "security_group_id" {
   description = "Security group for job tasks, for one-off runs"
   value       = aws_security_group.jobs.id

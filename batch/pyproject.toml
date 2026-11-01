@@ -1,0 +1,26 @@
+[project]
+name = "cql-batch"
+version = "0.1.0"
+description = "Nightly batch models for CryptoQuantLab"
+requires-python = ">=3.12"
+dependencies = [
+    "boto3>=1.35",
+    "numpy>=2.0",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+# hmmlearn 0.3.3 sets an array shape directly, which numpy 2.5 deprecates
+filterwarnings = ["ignore:Setting the shape on a NumPy array:DeprecationWarning"]
+
+[dependency-groups]
+dev = [
+    "hmmlearn>=0.3",
+    "pandas>=2.2",
+    "pytest>=8.3",
+    "statsmodels>=0.14",
+]
