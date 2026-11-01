@@ -2,7 +2,7 @@
 
 Risk analytics for the 100 largest cryptocurrencies: realized and forecast volatility, GARCH with diagnostics, and one-day Value at Risk and expected shortfall with out-of-sample backtests. Every model is implemented in TypeScript and checked against an independent Python reference built on numpy, scipy, statsmodels and `arch`.
 
-**Live:** https://cryptoquantlab.com — open any coin and choose the **Risk** tab. The [Methodology page](https://cryptoquantlab.com/methodology) has every model's formulas, assumptions, validation and references, next to today's numbers for Bitcoin.
+**Live:** https://cryptoquantlab.com — open any coin and choose the **Risk** tab. The [Markets page](https://cryptoquantlab.com/markets) sorts the top 100 by volatility, drawdown and VaR, and shows each coin's regime. The [Methodology page](https://cryptoquantlab.com/methodology) has every model's formulas, assumptions, validation and references, next to today's numbers for Bitcoin.
 
 ## What it computes
 
@@ -18,6 +18,7 @@ All models run on stored daily closes (00:00 UTC) for the last 365 days. A night
 | Value at Risk and expected shortfall | One-day, 95% and 99%, by historical simulation, normal, Student-t (maximum likelihood) and GARCH-filtered historical simulation | [`valueAtRisk.ts`](backend/src/models/valueAtRisk.ts) |
 | VaR backtests | Each day's VaR from the 180 returns before it; Kupiec unconditional coverage, Christoffersen independence, conditional coverage | [`varBacktest.ts`](backend/src/models/varBacktest.ts) |
 | Return and drawdown | Geometric annualized return; Sharpe, Sortino and Calmar (risk-free rate 0); maximum, current and longest drawdown; worst days and week; beta and correlation to Bitcoin over a year and 90 days | [`performance.ts`](backend/src/models/performance.ts) |
+| Regime | Threshold states, not a hidden Markov model. Trend: the latest close against its 200-day simple moving average. Volatility level: the latest 30-day volatility's percentile among the year's 30-day windows, low below the 33rd and high above the 67th | [`regime.ts`](backend/src/models/regime.ts) |
 | Probability functions | Log-gamma (Lanczos), incomplete gamma and beta (Lentz continued fractions), normal and Student-t pdf, cdf and quantile, chi-square tail | [`distributions.ts`](backend/src/models/distributions.ts) |
 
 ## How the models are validated
@@ -37,6 +38,7 @@ All models run on stored daily closes (00:00 UTC) for the last 365 days. A night
 | GARCH-filtered VaR/ES | the GARCH reference above | about 1e-6, every backtest exception day identical |
 | Kupiec, Christoffersen | scipy chi-square | 1e-10 |
 | Return, drawdown, beta | pandas `cummax`, `nsmallest`, `pct_change`; numpy `cov`, `corrcoef`; scipy `linregress` (1e-12) | 1e-12, every date identical |
+| Regime | pandas `rolling().mean()`, `rolling().std()`, `rank(pct=True)` (1e-12) | 1e-12, trend and level identical, 12 cases across Bitcoin and Ethereum |
 
 The validation turned up real bugs:
 
@@ -49,6 +51,7 @@ The validation turned up real bugs:
 - **GARCH:** α = 0.19, β = 0.64, half-life 3.6 days. Ljung-Box finds no remaining autocorrelation (p = 0.62) or clustering (p = 0.37) in the standardized residuals, but their excess kurtosis is still 2.6.
 - **HAR-RV:** R² 0.13. Only the daily component is significant (HAC t = 4.5).
 - **Return and drawdown:** −23.0% over the year; Sharpe −0.38, Sortino −0.54. Maximum drawdown −48.8% from 2025-10-27 to 2026-07-01, not recovered. Worst day −14.1% on 2026-02-06. Ethereum's beta to Bitcoin is 1.26, correlation 0.91.
+- **Regime:** uptrend, with the price 1.14× its 200-day average. Volatility level low, with 30-day volatility at the 25th percentile.
 
 | 95% one-day VaR, 183 test days | VaR | ES | Exceptions (9.2 expected) | Kupiec p |
 |---|---|---|---|---|
@@ -105,10 +108,11 @@ flowchart LR
 
 - **Nightly pipeline.**
   - `ingest-prices` stores the midnight close, market cap and volume for the top 100 coins. A coin new to the top 100 gets a year of history in one run.
-  - `compute-metrics` runs every model above for each coin and stores the result.
+  - `compute-metrics` runs every model above for each coin and stores the result, plus one snapshot row of every coin's headline numbers for the Markets table.
   - Each job has a missed-run and a failed-run alarm.
 - **API.**
   - `riskSummary(coinId)` reads the stored result, and computes on request only for a coin the job hasn't covered yet. Each stored row carries a version, so a deploy that changes the summary never serves rows in the old shape.
+  - `marketRisk` serves the nightly snapshot and never computes on request, because 100 coins are too many.
   - Signed-in users set moving-average crossover alerts. A 5-minute check records each trigger with a conditional write, so overlapping tasks during a deploy can't send duplicates, then emails the user's verified Cognito address.
 - **Edge.** The API sits behind CloudFront and AWS WAF, and the load balancer accepts only CloudFront traffic.
 - **Infrastructure as code.**
@@ -128,7 +132,7 @@ backend/
   src/resolvers/     GraphQL resolvers; schema in src/schema/graphql.ts
   src/test/fixtures/ Fixtures written by validation/
 frontend/
-  src/pages/         Dashboard, Markets, coin page (Overview and Risk tabs)
+  src/pages/         Dashboard, Markets, Methodology, coin page (Overview and Risk tabs)
   src/components/    MetricCard, ValueAtRiskPanel, GarchPanel, charts
 validation/
   cql_validation/    Python reference implementations
@@ -170,8 +174,7 @@ Data provided by CoinGecko.
 ## Not yet built
 
 - 10-day VaR, which needs Monte Carlo simulation.
-- Regime detection.
-- Risk columns on the Markets page.
+- A hidden Markov regime model to replace the thresholds.
 
 ## Disclaimer
 
