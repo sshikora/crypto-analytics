@@ -6,7 +6,7 @@ import rateLimit from 'express-rate-limit';
  */
 export const apiRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  max: 600, // Limit each IP to 600 requests per windowMs; a coin's Risk tab makes 6
   message: {
     error: 'Too Many Requests',
     message: 'You have exceeded the rate limit. Please try again later.',
