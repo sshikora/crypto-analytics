@@ -83,6 +83,30 @@ export interface Regime {
   volatilityLevel: 'low' | 'normal' | 'high';
 }
 
+export interface RegimeState {
+  name: string;
+  dailyMean: number;
+  annualizedVolatility: number;
+  stayProbability: number;
+  expectedDays: number;
+  longRunShare: number;
+}
+
+export interface RegimeModel {
+  coinId: string;
+  asOf: string;
+  observations: number;
+  logLikelihood: number;
+  aic: number;
+  bic: number;
+  oneStateBic: number;
+  supported: boolean;
+  states: RegimeState[];
+  turbulentProbability: number;
+  nextDayTurbulentProbability: number;
+  history: { dates: string[]; filtered: number[]; smoothed: number[] };
+}
+
 export interface MarketRiskRow {
   coinId: string;
   asOf: string;

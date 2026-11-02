@@ -4,6 +4,7 @@ import { useQuery } from '@apollo/client';
 import { PriceChart } from '../components/PriceChart';
 import { MovingAverageChart } from '../components/MovingAverageChart';
 import { GarchPanel } from '../components/GarchPanel';
+import { RegimeModelPanel } from '../components/RegimeModelPanel';
 import { PerformancePanel } from '../components/PerformancePanel';
 import { RegimeBadge } from '../components/RegimeBadge';
 import { StatCard } from '../components/StatCard';
@@ -11,7 +12,7 @@ import { TimeRangeSelector } from '../components/TimeRangeSelector';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { SEO } from '../components/SEO';
 import NotificationRulesList from '../components/NotificationRulesList';
-import { GET_CRYPTOCURRENCY, GET_PRICE_HISTORY, GET_MARKET_STATS, GET_REGIME, GET_RISK_SUMMARY } from '../services/queries';
+import { GET_CRYPTOCURRENCY, GET_PRICE_HISTORY, GET_MARKET_STATS, GET_REGIME, GET_REGIME_MODEL, GET_RISK_SUMMARY } from '../services/queries';
 import { TimeRange } from '../types/crypto';
 import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
@@ -59,6 +60,11 @@ export const CryptoDetail: React.FC = () => {
   const { data: regimeData } = useQuery(GET_REGIME, {
     variables: { coinId: coinGeckoId },
     skip: !coinGeckoId,
+  });
+
+  const { data: regimeModelData } = useQuery(GET_REGIME_MODEL, {
+    variables: { coinId: coinGeckoId },
+    skip: !coinGeckoId || tab !== 'risk',
   });
 
   const coinLoaded = Boolean(cryptoData?.cryptocurrency);
@@ -330,6 +336,11 @@ export const CryptoDetail: React.FC = () => {
                 asOf={riskData.riskSummary.asOf}
                 closes={riskData.riskSummary.observations}
               />
+            </div>
+          )}
+          {regimeModelData?.regimeModel && (
+            <div className="card">
+              <RegimeModelPanel model={regimeModelData.regimeModel} />
             </div>
           )}
         </div>

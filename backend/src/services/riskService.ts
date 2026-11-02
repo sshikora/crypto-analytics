@@ -1,5 +1,5 @@
 import NodeCache from 'node-cache';
-import { getLatestMarketSnapshot, getLatestRiskSummary } from '../repositories/coinMetricsRepository';
+import { getLatestMarketSnapshot, getLatestRegimeModel, getLatestRiskSummary } from '../repositories/coinMetricsRepository';
 import { getDailyPrices, StoredPrice } from '../repositories/priceHistoryRepository';
 import { fitGarch11, garchForecastVariance } from '../models/garch';
 import { informationCriteria, ljungBox, normalQqPoints, standardizedResiduals, TestResult } from '../models/garchDiagnostics';
@@ -147,6 +147,29 @@ export interface MarketRiskRow {
 export interface MarketRisk {
   computedAt: string;
   rows: MarketRiskRow[];
+}
+
+// Fitted in Python by the nightly fit-regimes job; see batch/cql_batch/fit_regimes.py
+export interface RegimeModel {
+  coinId: string;
+  asOf: string;
+  observations: number;
+  logLikelihood: number;
+  aic: number;
+  bic: number;
+  oneStateBic: number;
+  supported: boolean;
+  states: {
+    name: string;
+    dailyMean: number;
+    annualizedVolatility: number;
+    stayProbability: number;
+    expectedDays: number;
+    longRunShare: number;
+  }[];
+  turbulentProbability: number;
+  nextDayTurbulentProbability: number;
+  history: { dates: string[]; filtered: number[]; smoothed: number[] };
 }
 
 // Volatilities are annualized percentages, like the GARCH model's. Windows count stored observations,
@@ -389,6 +412,22 @@ export function marketRiskRow(asOf: string, summary: RiskSummary): MarketRiskRow
     valueAtRisk95: fhs95?.valueAtRisk ?? null,
     regime: summary.regime,
   };
+}
+
+const regimeModelCache = new NodeCache({ stdTTL: 3600 });
+
+// Null for a coin the job has skipped or not reached; the Risk tab then leaves the panel out
+export async function getRegimeModel(coinId: string): Promise<RegimeModel | null> {
+  if (!COIN_ID_PATTERN.test(coinId)) {
+    throw new Error('Invalid coin id');
+  }
+
+  const cached = regimeModelCache.get<RegimeModel>(coinId);
+  if (cached) return cached;
+
+  const model = await getLatestRegimeModel(coinId);
+  if (model) regimeModelCache.set(coinId, model);
+  return model;
 }
 
 const marketCache = new NodeCache({ stdTTL: 3600 });

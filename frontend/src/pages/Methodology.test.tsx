@@ -79,6 +79,7 @@ describe('Methodology', () => {
       'VaR backtesting',
       'Return, drawdown and beta',
       'Regime',
+      'Hidden Markov model',
       'How the models are validated',
       'References',
     ]) {
@@ -99,6 +100,34 @@ describe('Methodology', () => {
     expect(screen.getByText(/half-life 3\.6 days/)).toBeInTheDocument();
     expect(screen.getByText('GARCH-filtered')).toBeInTheDocument();
     expect(screen.getByText('8 / 187')).toBeInTheDocument();
+  });
+
+  it('shows the live hidden Markov fit for Bitcoin', () => {
+    vi.mocked(useQuery).mockReturnValue({
+      data: {
+        riskSummary: bitcoin,
+        regimeModel: {
+          asOf: '2026-11-01',
+          supported: true,
+          turbulentProbability: 0.074,
+          states: [
+            { annualizedVolatility: 0.302, expectedDays: 13.1 },
+            { annualizedVolatility: 0.821, expectedDays: 2.77 },
+          ],
+        },
+      },
+    } as never);
+
+    renderPage();
+
+    expect(screen.getByText(/7% chance of the turbulent state · calm 30% volatility, about 13 days · turbulent 82% volatility, about 2\.8 days/)).toBeInTheDocument();
+  });
+
+  it('explains why the threshold badge was kept', () => {
+    renderPage();
+    expect(screen.getByText('Why it doesn\'t replace the badge.')).toBeInTheDocument();
+    expect(screen.getByText('1.47×')).toBeInTheDocument();
+    expect(screen.getByText('0.16')).toBeInTheDocument();
   });
 
   it('records the section a visitor arrived at and scrolls to it', () => {

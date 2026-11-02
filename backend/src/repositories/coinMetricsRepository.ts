@@ -1,6 +1,6 @@
 import { PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { dynamodb } from '../db/dynamodb';
-import type { MarketRiskRow, RiskSummary } from '../services/riskService';
+import type { MarketRiskRow, RegimeModel, RiskSummary } from '../services/riskService';
 
 export interface StoredRiskSummary {
   riskSummary: RiskSummary;
@@ -10,6 +10,8 @@ export interface StoredRiskSummary {
 
 // The coin id pattern has no underscores, so this key can never collide with a coin
 const MARKET_KEY = '__market__';
+// Written by the Python fit-regimes job as a JSON string
+const REGIME_MODEL_PREFIX = '__hmm__';
 
 export interface StoredMarketSnapshot {
   rows: MarketRiskRow[];
@@ -48,6 +50,21 @@ export async function getLatestRiskSummary(coinId: string): Promise<StoredRiskSu
     })
   );
   return (result.Items?.[0] as StoredRiskSummary | undefined) ?? null;
+}
+
+export async function getLatestRegimeModel(coinId: string): Promise<RegimeModel | null> {
+  const result = await dynamodb.send(
+    new QueryCommand({
+      TableName: tableName(),
+      KeyConditionExpression: '#coinId = :coinId',
+      ExpressionAttributeNames: { '#coinId': 'coinId' },
+      ExpressionAttributeValues: { ':coinId': REGIME_MODEL_PREFIX + coinId },
+      ScanIndexForward: false,
+      Limit: 1,
+    })
+  );
+  const row = result.Items?.[0];
+  return row ? JSON.parse(row.regimeModel) : null;
 }
 
 export async function saveMarketSnapshot(
