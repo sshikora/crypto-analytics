@@ -74,3 +74,21 @@ jobs:
         with:
           name: backend-coverage
           path: ./backend/coverage
+
+  test-batch:
+    name: Batch Tests
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.3.3
+
+      - name: Run tests
+        working-directory: ./batch
+        run: uv run pytest -q

@@ -15,6 +15,7 @@ concurrency:
 env:
   AWS_REGION: us-east-1
   ECR_BACKEND_REPO: crypto-analytics-backend
+  ECR_BATCH_REPO: crypto-analytics-batch
   FRONTEND_BUCKET: crypto-analytics-production-frontend
   CLOUDFRONT_DISTRIBUTION_ID: E31SSJXY4NAH12
   ECS_CLUSTER: crypto-analytics-production
@@ -72,6 +73,13 @@ jobs:
           name: backend-coverage
         continue-on-error: true
 
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.3.3
+
+      - name: Run batch tests
+        working-directory: ./batch
+        run: uv run pytest -q
+
   build-and-deploy:
     name: Build and Deploy
     runs-on: ubuntu-latest
@@ -106,6 +114,16 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_BACKEND_REPO:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_BACKEND_REPO:latest
           echo "image=$ECR_REGISTRY/$ECR_BACKEND_REPO:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Build, tag, and push batch image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          cd batch
+          docker build --platform linux/amd64 -t $ECR_REGISTRY/$ECR_BATCH_REPO:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_BATCH_REPO:latest .
+          docker push $ECR_REGISTRY/$ECR_BATCH_REPO:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_BATCH_REPO:latest
 
       - name: Setup Node.js
         uses: actions/setup-node@v7

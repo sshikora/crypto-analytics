@@ -24,7 +24,7 @@ variable "subnet_ids" {
 }
 
 variable "image" {
-  description = "Container image for every job"
+  description = "Backend container image, for every job not marked batch"
   type        = string
 }
 
@@ -51,18 +51,25 @@ variable "secrets" {
   default     = {}
 }
 
+variable "ecr_images_to_keep" {
+  description = "Number of most recent batch images kept in ECR"
+  type        = number
+  default     = 10
+}
+
 variable "alarm_topic_arn" {
   description = "SNS topic for job alarms"
   type        = string
 }
 
 variable "jobs" {
-  description = "Jobs keyed by name, as passed to the backend job CLI; about explains the job in its alarm emails"
+  description = "Jobs keyed by name; batch runs the Python batch image with no secrets; about explains the job in its alarm emails"
   type = map(object({
     schedule          = string
     command           = list(string)
     cpu               = optional(number, 256)
     memory            = optional(number, 512)
+    batch             = optional(bool, false)
     max_silence_hours = number
     about             = string
   }))

@@ -14,7 +14,7 @@ Everything CryptoQuantLab runs on in AWS (`us-east-1`) is defined in OpenTofu un
 | `cognito` | User pool and web client; DynamoDB tables for preferences, notification rules and notifications; the policy letting the API look up a user's email |
 | `email` | SES domain identity with DKIM, Google Workspace MX and DKIM records, and the policy allowing the API to send from `noreply@` and `support@` |
 | `data` | DynamoDB `price-history` (deletion protection and point-in-time recovery, since rows older than a year can't be re-fetched) and `coin-metrics` (recomputable), each with read and write policies |
-| `scheduled_jobs` | One Fargate task definition and EventBridge Scheduler schedule per job, a shared task role and log group, and missed-run and failed-run alarms per job |
+| `scheduled_jobs` | One Fargate task definition and EventBridge Scheduler schedule per job, a shared task role and log group, missed-run and failed-run alarms per job, and the ECR repository for the Python batch image |
 | `monitoring` | SNS alerts topic, Route 53 health checks, and alarms for site and API health, 5xx errors, CPU, memory and the crossover checker |
 | `github_oidc` | Two roles that trust the account's GitHub Actions OIDC provider: `github-deploy` for the deploy workflow and `github-terraform` for the infrastructure workflow |
 
@@ -50,7 +50,7 @@ The **Terraform Infrastructure Deployment** workflow runs the same plan or apply
 - **The API's task definition** is registered by Terraform, but the deploy workflow registers a new revision for each image and the service ignores Terraform's revision. Environment variable changes take effect on the next deploy.
 - **Task-role policy lists** (`task_role_policy_arns`) are attached by index. Append new policies at the end; inserting one in the middle detaches and reattaches the ones after it, briefly removing their permissions.
 - **Ordering:** when code needs new permissions or a new table, apply first, then merge. Merging to `master` deploys.
-- **Scheduled jobs** are a map in `environments/production/main.tf`. Each entry needs a `schedule`, `command`, `max_silence_hours` and an `about` sentence for its alarm emails. CloudWatch limits alarm descriptions to 1,024 characters, and a plan fails if one is longer. Each job's failed-run alarm description includes the `aws ecs run-task` command to run it by hand.
+- **Scheduled jobs** are a map in `environments/production/main.tf`. Each entry needs a `schedule`, `command`, `max_silence_hours` and an `about` sentence for its alarm emails. CloudWatch limits alarm descriptions to 1,024 characters, and a plan fails if one is longer. Each job's failed-run alarm description includes the `aws ecs run-task` command to run it by hand. A job with `batch = true` runs the Python image built from `batch/` and gets no secrets.
 - **A new job's missed-run alarm** fires falsely on its first day, before any run has been counted, and clears itself after the first successful run.
 
 ## Kept outside OpenTofu
@@ -67,7 +67,7 @@ SES has production access. Cognito sends sign-up and password emails through SES
 
 `.github/workflows/deploy.yml` runs on every push to `master`, one run at a time:
 1. Runs the tests.
-2. Builds the backend image and pushes it to ECR, tagged with the commit SHA and `latest`. Scheduled jobs run `latest`.
+2. Builds the backend and batch images and pushes them to ECR, tagged with the commit SHA and `latest`. Scheduled jobs run `latest`.
 3. Builds the frontend, syncs it to S3, and invalidates CloudFront.
 4. Writes secrets to SSM.
 5. Registers a new task definition revision with the image, updates the ECS service and waits for it to be stable. A deployment that never becomes healthy rolls back.

@@ -81,7 +81,7 @@ module "github_oidc" {
   project_name         = var.project_name
   environment          = var.environment
   github_repository    = "sshikora/crypto-analytics"
-  ecr_repository_names = ["crypto-analytics-backend"]
+  ecr_repository_names = ["crypto-analytics-backend", "crypto-analytics-batch"]
 
   frontend_bucket_arn       = module.frontend_cdn.bucket_arn
   frontend_distribution_arn = module.frontend_cdn.distribution_arn
@@ -262,6 +262,16 @@ module "scheduled_jobs" {
       memory            = 2048
       max_silence_hours = 26
       about             = "It runs at 01:00 UTC and stores each top-100 coin's Risk tab numbers. Until it succeeds, the API serves the previous day's."
+    }
+    "fit-regimes" = {
+      # Runs after compute-metrics, whose Markets snapshot supplies the coin list
+      schedule          = "cron(30 1 * * ? *)"
+      command           = ["/app/.venv/bin/python", "-m", "cql_batch.fit_regimes"]
+      batch             = true
+      cpu               = 1024
+      memory            = 2048
+      max_silence_hours = 26
+      about             = "It runs at 01:30 UTC and fits each top-100 coin's hidden Markov regime model in Python. Until it succeeds, the API serves the previous day's fit."
     }
   }
 }

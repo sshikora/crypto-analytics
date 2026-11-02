@@ -12,6 +12,35 @@ locals {
 
 data "aws_region" "current" {}
 
+# Python jobs run from their own image, so the API image carries no Python and the jobs no Node.
+resource "aws_ecr_repository" "batch" {
+  name                 = "${var.project_name}-batch"
+  image_tag_mutability = "MUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = false
+  }
+}
+
+resource "aws_ecr_lifecycle_policy" "batch" {
+  repository = aws_ecr_repository.batch.name
+
+  policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Keep the ${var.ecr_images_to_keep} most recent images"
+        selection = {
+          tagStatus   = "any"
+          countType   = "imageCountMoreThan"
+          countNumber = var.ecr_images_to_keep
+        }
+        action = { type = "expire" }
+      }
+    ]
+  })
+}
+
 resource "aws_cloudwatch_log_group" "jobs" {
   name              = "/ecs/${local.name}"
   retention_in_days = 30
@@ -59,7 +88,7 @@ resource "aws_security_group" "jobs" {
   }
 }
 
-# The image tag is "latest", which the deploy workflow pushes, so each run uses the newest backend build.
+# The image tag is "latest", which the deploy workflow pushes, so each run uses the newest build.
 resource "aws_ecs_task_definition" "job" {
   for_each = var.jobs
 
@@ -79,12 +108,12 @@ resource "aws_ecs_task_definition" "job" {
   container_definitions = jsonencode([
     {
       name      = "job"
-      image     = var.image
+      image     = each.value.batch ? "${aws_ecr_repository.batch.repository_url}:latest" : var.image
       essential = true
       command   = each.value.command
 
       environment = [for k, v in var.environment_variables : { name = k, value = v }]
-      secrets     = [for k, arn in var.secrets : { name = k, valueFrom = arn }]
+      secrets     = each.value.batch ? [] : [for k, arn in var.secrets : { name = k, valueFrom = arn }]
 
       logConfiguration = {
         logDriver = "awslogs"
@@ -172,7 +201,7 @@ resource "aws_scheduler_schedule" "job" {
   }
 }
 
-# The job CLI logs one JSON line per run with event "job_succeeded" or "job_failed".
+# Every job logs one JSON line per run with event "job_succeeded" or "job_failed".
 resource "aws_cloudwatch_log_metric_filter" "succeeded" {
   for_each = var.jobs
 
