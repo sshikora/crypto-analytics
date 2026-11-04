@@ -1,6 +1,6 @@
 # CryptoQuantLab
 
-Risk analytics for the 100 largest cryptocurrencies: realized and forecast volatility, GARCH with diagnostics, one-day Value at Risk and expected shortfall with out-of-sample backtests, and regimes, plus a Monte Carlo engine for multi-day scenarios that isn't on the site yet. The models are implemented in TypeScript and checked against an independent Python reference built on numpy, scipy, statsmodels and `arch`. The hidden Markov model is fitted in Python by a nightly job and checked against hmmlearn and statsmodels.
+Risk analytics for the 100 largest cryptocurrencies: realized and forecast volatility, GARCH with diagnostics, one-day Value at Risk and expected shortfall with out-of-sample backtests, and regimes, plus a Monte Carlo engine and portfolio construction that aren't on the site yet. The models are implemented in TypeScript and checked against an independent Python reference built on numpy, scipy, statsmodels, `arch`, scikit-learn and PyPortfolioOpt. The hidden Markov model is fitted in Python by a nightly job and checked against hmmlearn and statsmodels.
 
 **Live:** https://cryptoquantlab.com — open any coin and choose the **Risk** tab. The [Markets page](https://cryptoquantlab.com/markets) sorts the top 100 by volatility, drawdown and VaR, and shows each coin's regime. The [Methodology page](https://cryptoquantlab.com/methodology) has every model's formulas, assumptions, validation and references, next to today's numbers for Bitcoin.
 
@@ -21,6 +21,8 @@ All models run on stored daily closes (00:00 UTC) for the last 365 days. Nightly
 | Regime | Threshold states, shown as a badge. Trend: the latest close against its 200-day simple moving average. Volatility level: the latest 30-day volatility's percentile among the year's 30-day windows, low below the 33rd and high above the 67th | [`regime.ts`](backend/src/models/regime.ts) |
 | Hidden Markov model | Two Gaussian states on daily log returns, fitted by EM from ten starts in Python. Filtered and smoothed state probabilities, expected durations, and BIC against a single normal | [`hmm.py`](batch/cql_batch/hmm.py) |
 | Probability functions | Log-gamma (Lanczos), incomplete gamma and beta (Lentz continued fractions), normal and Student-t pdf, cdf and quantile, chi-square tail | [`distributions.ts`](backend/src/models/distributions.ts) |
+| Covariance | Sample covariance; Ledoit-Wolf shrinkage towards a scaled identity and towards constant correlation | [`covariance.ts`](backend/src/models/covariance.ts) |
+| Portfolios | Long-only minimum variance and efficient frontier by a primal active-set method; risk parity by Newton's method on Spinu's convex form; risk contributions. Not on the site yet | [`portfolio.ts`](backend/src/models/portfolio.ts) |
 | Monte Carlo paths | Normal, Student-t and GARCH bootstrap (filtered historical simulation) paths of daily log returns, with optional antithetic pairs. Fan quantiles, horizon VaR and ES, and drawdown probabilities. numpy's SFC64 generator, Box-Muller normals, Marsaglia-Tsang gammas. Not on the site yet | [`monteCarlo.ts`](backend/src/models/monteCarlo.ts), [`random.ts`](backend/src/models/random.ts) |
 
 ## How the models are validated
@@ -42,6 +44,8 @@ All models run on stored daily closes (00:00 UTC) for the last 365 days. Nightly
 | Return, drawdown, beta | pandas `cummax`, `nsmallest`, `pct_change`; numpy `cov`, `corrcoef`; scipy `linregress` (1e-12) | 1e-12, every date identical |
 | Regime | pandas `rolling().mean()`, `rolling().std()`, `rank(pct=True)` (1e-12) | 1e-12, trend and level identical, 12 cases across Bitcoin and Ethereum |
 | Hidden Markov model, in Python | Enumerating every state path; hmmlearn; statsmodels `MarkovRegression` | Recursions 1e-12, EM iterates 1e-9, likelihood 1e-9; 20 statsmodels restarts find nothing higher |
+| Covariance shrinkage | scikit-learn `LedoitWolf` (identity target); PyPortfolioOpt (constant correlation, on the same divide-by-n covariance) | 1e-12 |
+| Portfolios | scipy SLSQP, then the optimality conditions solved exactly on the assets it holds; closed forms for two assets and uncorrelated assets | weights 1e-10 (minimum variance), 1e-9 (frontier); optimality conditions and equal risk shares 1e-12 |
 | Monte Carlo | numpy's SFC64; scipy Kolmogorov-Smirnov tests; closed forms for the normal fan and the GARCH variance path | generator bit for bit; whole paths 1e-12 for every model, with and without antithetic pairs |
 
 The validation turned up real bugs:
@@ -94,16 +98,34 @@ Every model overstated the risk over these six months, the GARCH bootstrap least
 
 Antithetic pairs cut the variance of the mean return 27–60 times but leave VaR and ES unchanged, because a bad path's mirror is a good one. Tail estimates need more paths instead: with 10,000, a 30-day 95% VaR is good to about a quarter of a percentage point.
 
+### Long-only portfolios of the 20 largest coins
+
+Each portfolio was set from the previous 90 or 180 days and held for 30, over about six months, averaged across six rebalancing schedules:
+
+| Portfolio | Annualized volatility | Effective holdings | Realized ÷ forecast volatility |
+|---|---|---|---|
+| Minimum variance (any of three covariance estimates) | 21.7–21.9% | 1.9–3.6 | 0.98–1.31 |
+| Risk parity | 34.5% | 13.5 | 0.96 |
+| Cap-weighted | 38.1% | 2.0 | 0.90 |
+| Equal weight | 44.6% | 20 | 0.99 |
+| Highest Sharpe on the frontier | 51.3% | 3.2 | 0.96 |
+
+Minimum variance cut volatility a lot, but by holding very few coins, mostly TRON. Without TRON it still had the lowest volatility, 26–28%. Its most concentrated versions understated their own risk by 25–31%, so the portfolio page will need a weight cap. Optimizing on a year of mean returns gave the riskiest portfolio and traded half of it each month.
+
+In simulation, shrinking towards the identity, scikit-learn's default, made minimum variance worse than no shrinkage, because it pulls correlations towards zero. Shrinking towards a constant correlation roughly halved the excess risk. On real coins the three estimates were within two percentage points, in the same order.
+
 ### Notebooks
 
-Four notebooks in [`validation/notebooks/`](validation/notebooks/) write up the main models in full, with their outputs:
+Five notebooks in [`validation/notebooks/`](validation/notebooks/) write up the main models in full, with their outputs:
 
 - [`garch.ipynb`](validation/notebooks/garch.ipynb): the data's fat tails; the model and likelihood; estimation compared with `arch`; the likelihood surface; a simulation study of how well a year of data identifies the parameters; diagnostics; forecasts; limitations.
 - [`value_at_risk.ipynb`](validation/notebooks/value_at_risk.ipynb): the four VaR and ES methods; the Student-t fit; rolling out-of-sample VaR with every exception marked; Kupiec and Christoffersen tests; the power of a one-year backtest; limitations.
 - [`hmm.ipynb`](validation/notebooks/hmm.ipynb): the model and recursions; the fit compared with statsmodels; filtered and smoothed probabilities; how many states; what a year identifies; a walk-forward test against GARCH, EWMA and a threshold; limitations.
 - [`monte_carlo.ipynb`](validation/notebooks/monte_carlo.ipynb): the three path models; random numbers tested against scipy; checks against closed forms; Monte Carlo error and what antithetic pairs do; Bitcoin's next 30 days; an out-of-sample test of 10-day VaR across coins; limitations.
 
-`uv run scripts/build_notebooks.py` regenerates and re-executes all four.
+- [`portfolio.ipynb`](validation/notebooks/portfolio.ipynb): two Ledoit-Wolf targets checked against scikit-learn and PyPortfolioOpt; a simulation of when shrinkage helps; minimum variance, risk parity and the frontier; an out-of-sample comparison on the top 20 coins, with and without TRON; limitations.
+
+`uv run scripts/build_notebooks.py` regenerates and re-executes all five.
 
 ### Running the validation
 
@@ -113,7 +135,7 @@ uv sync
 uv run scripts/make_var_fixtures.py      # one script per model; each prints its results
 ```
 
-The fixtures land in `backend/src/test/fixtures/`. The sample data is CoinGecko's daily Bitcoin and Ethereum series, in `validation/data/`, with the per-coin results of the hidden Markov and Monte Carlo cross-sections in `hmm_cross_section.csv` and `monte_carlo_cross_section.csv`, and the Monte Carlo exceptions by period in `monte_carlo_periods.csv`. The hidden Markov model's tests run with `uv run pytest` in `batch/`.
+The fixtures land in `backend/src/test/fixtures/`. The sample data is CoinGecko's daily Bitcoin and Ethereum series, in `validation/data/`, with the per-coin results of the hidden Markov and Monte Carlo cross-sections in `hmm_cross_section.csv` and `monte_carlo_cross_section.csv`, the Monte Carlo exceptions by period in `monte_carlo_periods.csv`, and the portfolio comparison's results in `portfolio_backtest_summary.csv` and `portfolio_backtest_periods.csv`. The hidden Markov model's tests run with `uv run pytest` in `batch/`.
 
 ## Architecture
 
@@ -216,6 +238,7 @@ Data provided by CoinGecko.
 ## Not yet built
 
 - A Scenario tab built on the Monte Carlo engine, with fan charts, loss distributions and multi-day VaR on the site.
+- A portfolio page built on the portfolio models, with a maximum weight per coin, which the optimizer doesn't support yet.
 
 ## Disclaimer
 
