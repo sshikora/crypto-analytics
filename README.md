@@ -1,6 +1,6 @@
 # CryptoQuantLab
 
-Risk analytics for the 100 largest cryptocurrencies: realized and forecast volatility, GARCH with diagnostics, one-day Value at Risk and expected shortfall with out-of-sample backtests, and regimes. The models are implemented in TypeScript and checked against an independent Python reference built on numpy, scipy, statsmodels and `arch`. The hidden Markov model is fitted in Python by a nightly job and checked against hmmlearn and statsmodels.
+Risk analytics for the 100 largest cryptocurrencies: realized and forecast volatility, GARCH with diagnostics, one-day Value at Risk and expected shortfall with out-of-sample backtests, and regimes, plus a Monte Carlo engine for multi-day scenarios that isn't on the site yet. The models are implemented in TypeScript and checked against an independent Python reference built on numpy, scipy, statsmodels and `arch`. The hidden Markov model is fitted in Python by a nightly job and checked against hmmlearn and statsmodels.
 
 **Live:** https://cryptoquantlab.com — open any coin and choose the **Risk** tab. The [Markets page](https://cryptoquantlab.com/markets) sorts the top 100 by volatility, drawdown and VaR, and shows each coin's regime. The [Methodology page](https://cryptoquantlab.com/methodology) has every model's formulas, assumptions, validation and references, next to today's numbers for Bitcoin.
 
@@ -21,6 +21,7 @@ All models run on stored daily closes (00:00 UTC) for the last 365 days. Nightly
 | Regime | Threshold states, shown as a badge. Trend: the latest close against its 200-day simple moving average. Volatility level: the latest 30-day volatility's percentile among the year's 30-day windows, low below the 33rd and high above the 67th | [`regime.ts`](backend/src/models/regime.ts) |
 | Hidden Markov model | Two Gaussian states on daily log returns, fitted by EM from ten starts in Python. Filtered and smoothed state probabilities, expected durations, and BIC against a single normal | [`hmm.py`](batch/cql_batch/hmm.py) |
 | Probability functions | Log-gamma (Lanczos), incomplete gamma and beta (Lentz continued fractions), normal and Student-t pdf, cdf and quantile, chi-square tail | [`distributions.ts`](backend/src/models/distributions.ts) |
+| Monte Carlo paths | Normal, Student-t and GARCH bootstrap (filtered historical simulation) paths of daily log returns, with optional antithetic pairs. Fan quantiles, horizon VaR and ES, and drawdown probabilities. numpy's SFC64 generator, Box-Muller normals, Marsaglia-Tsang gammas. Not on the site yet | [`monteCarlo.ts`](backend/src/models/monteCarlo.ts), [`random.ts`](backend/src/models/random.ts) |
 
 ## How the models are validated
 
@@ -41,6 +42,7 @@ All models run on stored daily closes (00:00 UTC) for the last 365 days. Nightly
 | Return, drawdown, beta | pandas `cummax`, `nsmallest`, `pct_change`; numpy `cov`, `corrcoef`; scipy `linregress` (1e-12) | 1e-12, every date identical |
 | Regime | pandas `rolling().mean()`, `rolling().std()`, `rank(pct=True)` (1e-12) | 1e-12, trend and level identical, 12 cases across Bitcoin and Ethereum |
 | Hidden Markov model, in Python | Enumerating every state path; hmmlearn; statsmodels `MarkovRegression` | Recursions 1e-12, EM iterates 1e-9, likelihood 1e-9; 20 statsmodels restarts find nothing higher |
+| Monte Carlo | numpy's SFC64; scipy Kolmogorov-Smirnov tests; closed forms for the normal fan and the GARCH variance path | generator bit for bit; whole paths 1e-12 for every model, with and without antithetic pairs |
 
 The validation turned up real bugs:
 
@@ -78,15 +80,30 @@ Its one-day distribution is better, beating a normal with constant variance for 
 
 Simulating a year from the fitted Bitcoin model shows what a year can identify. State volatilities are good to 6–14%, the turbulent state's stay probability has a 90% range of about 0.4 to 0.85, and the state means can't be told apart, so the states say nothing about direction.
 
+### Does 10-day Monte Carlo VaR hold?
+
+Each model was fitted to a coin's previous 180 returns and simulated 10 days ahead with 5,000 paths, on non-overlapping periods. These are the 83 coins with daily volatility of at least 0.5%, 1,467 forecasts per model:
+
+| 10-day VaR | Exceptions at 95% | Kupiec p | Exceptions at 99% | Kupiec p |
+|---|---|---|---|---|
+| Normal | 2.9% | < 0.001 | 0.41% | 0.010 |
+| Student-t | 2.0% | < 0.001 | 0.14% | < 0.001 |
+| GARCH bootstrap | 3.7% | 0.022 | 0.61% | 0.11 |
+
+Every model overstated the risk over these six months, the GARCH bootstrap least. When VaR was broken, the loss averaged about the predicted ES. About half the exceptions came in two market-wide falls, so the test has roughly 18 independent periods, and the p-values overstate the evidence.
+
+Antithetic pairs cut the variance of the mean return 27–60 times but leave VaR and ES unchanged, because a bad path's mirror is a good one. Tail estimates need more paths instead: with 10,000, a 30-day 95% VaR is good to about a quarter of a percentage point.
+
 ### Notebooks
 
-Three notebooks in [`validation/notebooks/`](validation/notebooks/) write up the main models in full, with their outputs:
+Four notebooks in [`validation/notebooks/`](validation/notebooks/) write up the main models in full, with their outputs:
 
 - [`garch.ipynb`](validation/notebooks/garch.ipynb): the data's fat tails; the model and likelihood; estimation compared with `arch`; the likelihood surface; a simulation study of how well a year of data identifies the parameters; diagnostics; forecasts; limitations.
 - [`value_at_risk.ipynb`](validation/notebooks/value_at_risk.ipynb): the four VaR and ES methods; the Student-t fit; rolling out-of-sample VaR with every exception marked; Kupiec and Christoffersen tests; the power of a one-year backtest; limitations.
 - [`hmm.ipynb`](validation/notebooks/hmm.ipynb): the model and recursions; the fit compared with statsmodels; filtered and smoothed probabilities; how many states; what a year identifies; a walk-forward test against GARCH, EWMA and a threshold; limitations.
+- [`monte_carlo.ipynb`](validation/notebooks/monte_carlo.ipynb): the three path models; random numbers tested against scipy; checks against closed forms; Monte Carlo error and what antithetic pairs do; Bitcoin's next 30 days; an out-of-sample test of 10-day VaR across coins; limitations.
 
-`uv run scripts/build_notebooks.py` regenerates and re-executes all three.
+`uv run scripts/build_notebooks.py` regenerates and re-executes all four.
 
 ### Running the validation
 
@@ -96,7 +113,7 @@ uv sync
 uv run scripts/make_var_fixtures.py      # one script per model; each prints its results
 ```
 
-The fixtures land in `backend/src/test/fixtures/`. The sample data is CoinGecko's daily Bitcoin and Ethereum series, in `validation/data/`, with the hidden Markov model's per-coin results in `hmm_cross_section.csv`. The hidden Markov model's tests run with `uv run pytest` in `batch/`.
+The fixtures land in `backend/src/test/fixtures/`. The sample data is CoinGecko's daily Bitcoin and Ethereum series, in `validation/data/`, with the per-coin results of the hidden Markov and Monte Carlo cross-sections in `hmm_cross_section.csv` and `monte_carlo_cross_section.csv`, and the Monte Carlo exceptions by period in `monte_carlo_periods.csv`. The hidden Markov model's tests run with `uv run pytest` in `batch/`.
 
 ## Architecture
 
@@ -198,7 +215,7 @@ Data provided by CoinGecko.
 
 ## Not yet built
 
-- 10-day VaR, which needs Monte Carlo simulation.
+- A Scenario tab built on the Monte Carlo engine, with fan charts, loss distributions and multi-day VaR on the site.
 
 ## Disclaimer
 
