@@ -4,9 +4,9 @@ import { useQuery } from '@apollo/client';
 import { Formula } from '../components/Formula';
 import { Disclaimer } from '../components/Disclaimer';
 import { SEO } from '../components/SEO';
-import { GET_REGIME_MODEL, GET_RISK_SUMMARY } from '../services/queries';
+import { GET_REGIME_MODEL, GET_RISK_SUMMARY, GET_SCENARIO_TAIL_RISK } from '../services/queries';
 import { track } from '../services/analytics';
-import { RegimeModel, RiskSummary } from '../types/crypto';
+import { RegimeModel, RiskSummary, Scenario } from '../types/crypto';
 
 const SOURCE = 'https://github.com/sshikora/crypto-analytics/blob/master';
 
@@ -17,6 +17,7 @@ const SECTIONS = [
   { id: 'garch', title: 'GARCH(1,1) and diagnostics' },
   { id: 'value-at-risk', title: 'Value at Risk and expected shortfall' },
   { id: 'backtesting', title: 'VaR backtesting' },
+  { id: 'monte-carlo', title: 'Monte Carlo scenarios' },
   { id: 'performance', title: 'Return, drawdown and beta' },
   { id: 'regime', title: 'Regime' },
   { id: 'hidden-markov', title: 'Hidden Markov model' },
@@ -63,6 +64,7 @@ const METHOD_LABELS: Record<string, string> = {
   normal: 'Normal',
   studentT: 'Student-t',
   filteredHistorical: 'GARCH-filtered',
+  garchBootstrap: 'GARCH bootstrap',
 };
 
 export default function Methodology() {
@@ -71,13 +73,15 @@ export default function Methodology() {
   const btc: RiskSummary | undefined = data?.riskSummary;
   const { data: regimeData } = useQuery(GET_REGIME_MODEL, { variables: { coinId: 'bitcoin' } });
   const btcRegime: RegimeModel | undefined = regimeData?.regimeModel ?? undefined;
+  const { data: scenarioData } = useQuery(GET_SCENARIO_TAIL_RISK, { variables: { coinId: 'bitcoin' } });
+  const btcScenario: Scenario | undefined = scenarioData?.scenario ?? undefined;
 
   useEffect(() => {
     track('view_methodology', { section: location.hash.slice(1) || 'top' });
   }, [location.hash]);
 
   // The live panels arrive after the first render and push later sections down, so scroll again once they load
-  const liveLoaded = [btc, btcRegime].filter(Boolean).length;
+  const liveLoaded = [btc, btcRegime, btcScenario].filter(Boolean).length;
   useEffect(() => {
     if (location.hash) document.getElementById(location.hash.slice(1))?.scrollIntoView();
   }, [location.hash, liveLoaded]);
@@ -106,7 +110,7 @@ export default function Methodology() {
           <div className="space-y-2">
             <h1 className="text-3xl font-bold text-gray-900">Methodology</h1>
             <p className="text-gray-600">
-              How each number on the Risk tab is estimated, what it assumes, and how it is checked. Every model runs
+              How each number on the Risk and Scenario tabs is estimated, what it assumes, and how it is checked. Every model runs
               nightly on stored daily closes and is validated against an independent Python implementation.
             </p>
             <Disclaimer />
@@ -306,6 +310,108 @@ export default function Methodology() {
             </Live>
           </Section>
 
+          <Section
+            id="monte-carlo"
+            title="Monte Carlo scenarios"
+            code={['backend/src/models/monteCarlo.ts', 'backend/src/models/random.ts', 'backend/src/services/scenarioService.ts']}
+          >
+            <p>
+              The Scenario tab simulates 10,000 paths of daily log returns, 90 days long, from each of three models fitted to
+              the last 180 returns. The fan, VaR, expected shortfall and drawdown chances at 7, 30 and 90 days all come from
+              the same paths. Simulating takes about a second per coin, so the nightly job does it and the API serves the
+              stored result.
+            </p>
+            <ul className="list-disc pl-5 space-y-2">
+              <li>
+                <strong>Normal</strong> (geometric Brownian motion), with the window's standard deviation:
+                <Formula tex="r_t = \sigma z_t, \qquad z_t \sim N(0, 1)" />
+              </li>
+              <li>
+                <strong>Student-t</strong>, with the scale and degrees of freedom fitted by maximum likelihood, drawn as a
+                normal over the root of a gamma:
+                <Formula tex="r_t = s\, z_t \sqrt{\nu / (2 g_t)}, \qquad g_t \sim \Gamma(\nu / 2, 1)" />
+              </li>
+              <li>
+                <strong>GARCH bootstrap</strong> (filtered historical simulation): volatility starts at the GARCH(1,1)
+                forecast for tomorrow and reacts to each simulated day, and each shock is one of the window's standardized
+                residuals <Formula inline tex="\hat z" />, drawn at random.
+                <Formula tex="r_t = \sqrt{h_t}\, \hat z_{k_t}, \qquad h_{t+1} = \omega + \alpha r_t^2 + \beta h_t" />
+              </li>
+            </ul>
+            <p>
+              A position is worth <Formula inline tex="V_t = V_0 \exp(r_1 + \dots + r_t)" />. VaR and expected shortfall at
+              horizon <Formula inline tex="T" /> are the historical-simulation formulas applied to the 10,000 values of{' '}
+              <Formula inline tex="V_T / V_0 - 1" />, and a path's drawdown is its largest fall from a running peak that
+              starts at today's value:
+            </p>
+            <Formula tex="D_T = \max_{t \le T} \left(1 - \frac{V_t}{\max_{s \le t} V_s}\right), \qquad V_0 \text{ included}" />
+            <p>
+              <strong>No drift.</strong> The paths have mean log return zero, so they are centred on today's price. A past
+              window's average return is a poor guide to the next one, and over 90 days it would dominate the fan; setting
+              it to zero changed the out-of-sample exception rates below by under a percentage point.
+            </p>
+            <p>
+              <strong>Random numbers.</strong> numpy's SFC64 generator is reimplemented in TypeScript, with Box-Muller normals
+              and Marsaglia-Tsang gammas, so the Python reference produces the same draws from the same seed. The seed is
+              fixed, so the same prices always give the same scenario.
+            </p>
+            <p>
+              <strong>Out of sample.</strong> Each model was fitted to a coin's previous 180 returns and simulated 10 days
+              ahead, on non-overlapping periods, for the 83 coins with daily volatility of at least 0.5% (1,467 forecasts
+              per model):
+            </p>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs text-gray-500">
+                    <th className="pr-4 py-1 font-medium">10-day VaR</th>
+                    <th className="pr-4 py-1 font-medium">Losses beyond 95% VaR (5% expected)</th>
+                    <th className="py-1 font-medium">Beyond 99% VaR (1% expected)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    ['GARCH bootstrap', '3.7%', '0.61%'],
+                    ['Normal', '2.9%', '0.41%'],
+                    ['Student-t', '2.0%', '0.14%'],
+                  ].map(([name, at95, at99]) => (
+                    <tr key={name} className="border-t border-gray-100">
+                      <td className="pr-4 py-1">{name}</td>
+                      <td className="pr-4 py-1">{at95}</td>
+                      <td className="py-1">{at99}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p>
+              Every model overstated the risk over those six months, the GARCH bootstrap least, which is why it is the
+              default. About half the exceptions came in two market-wide falls, so the test has roughly 18 independent
+              periods. The 30 and 90-day horizons have not been backtested; a year of prices holds too few independent
+              90-day periods.
+            </p>
+            <p className="text-sm text-gray-600">
+              Limits: one coin at a time, so a portfolio needs correlated paths first; the parameters are treated as known,
+              though a 180-day window estimates them with error; and the bootstrap cannot draw a shock larger than the
+              window's largest standardized return, only a larger variance.
+            </p>
+            {btcScenario && (
+              <div className="rounded-lg bg-gray-50 p-3 text-sm">
+                <p className="text-xs font-medium text-gray-500 mb-2">Live on Bitcoin, daily closes up to {btcScenario.asOf}</p>
+                <p>
+                  30-day 95% VaR:{' '}
+                  {btcScenario.models
+                    .map(m => {
+                      const at95 = m.horizons.find(h => h.days === 30)?.tailRisk[0];
+                      return at95 ? `${METHOD_LABELS[m.model] ?? m.model} ${pct(at95.valueAtRisk, 1)}` : null;
+                    })
+                    .filter(Boolean)
+                    .join(' · ')}
+                </p>
+              </div>
+            )}
+          </Section>
+
           <Section id="performance" title="Return, drawdown and beta" code={['backend/src/models/performance.ts']}>
             <p>On daily simple returns, with the risk-free rate taken as 0, the usual convention for crypto:</p>
             <Formula tex="\text{Sharpe} = \frac{\bar R}{s_R}\sqrt{N}, \qquad \text{Sortino} = \frac{\bar R}{\sqrt{\frac{1}{n}\sum_t \min(R_t, 0)^2}}\sqrt{N}, \qquad \text{Calmar} = \frac{\left(P_n / P_1\right)^{N/(n-1)} - 1}{\left|\text{MDD}\right|}" />
@@ -480,6 +586,7 @@ export default function Methodology() {
                     ['Return, drawdown, beta', 'pandas, numpy, scipy linregress', '1e-12'],
                     ['Regime', 'pandas rolling mean, rolling std and rank', '1e-12'],
                     ['Hidden Markov', 'enumerating every state path; hmmlearn; statsmodels', 'recursions 1e-12, EM steps 1e-9, likelihood 1e-9'],
+                    ['Monte Carlo', "numpy's SFC64; scipy Kolmogorov-Smirnov tests; closed forms", 'generator bit for bit; paths 1e-12'],
                   ].map(([model, against, tolerance]) => (
                     <tr key={model} className="border-t border-gray-100">
                       <td className="pr-4 py-1">{model}</td>
@@ -507,6 +614,10 @@ export default function Methodology() {
               <a href={`${SOURCE}/validation/notebooks/hmm.ipynb`} className="text-primary-600 hover:text-primary-700 font-mono">
                 hmm.ipynb
               </a>
+              ,{' '}
+              <a href={`${SOURCE}/validation/notebooks/monte_carlo.ipynb`} className="text-primary-600 hover:text-primary-700 font-mono">
+                monte_carlo.ipynb
+              </a>
             </p>
           </Section>
 
@@ -515,14 +626,17 @@ export default function Methodology() {
               <li>Barone-Adesi, G., Giannopoulos, K. and Vosper, L. (1999). VaR without correlations for portfolios of derivative securities. <em>Journal of Futures Markets</em>, 19(5), 583–602.</li>
               <li>Baum, L. E., Petrie, T., Soules, G. and Weiss, N. (1970). A maximization technique occurring in the statistical analysis of probabilistic functions of Markov chains. <em>Annals of Mathematical Statistics</em>, 41(1), 164–171.</li>
               <li>Bollerslev, T. (1986). Generalized autoregressive conditional heteroskedasticity. <em>Journal of Econometrics</em>, 31(3), 307–327.</li>
+              <li>Box, G. E. P. and Muller, M. E. (1958). A note on the generation of random normal deviates. <em>Annals of Mathematical Statistics</em>, 29(2), 610–611.</li>
               <li>Christoffersen, P. F. (1998). Evaluating interval forecasts. <em>International Economic Review</em>, 39(4), 841–862.</li>
               <li>Corsi, F. (2009). A simple approximate long-memory model of realized volatility. <em>Journal of Financial Econometrics</em>, 7(2), 174–196.</li>
               <li>Dempster, A. P., Laird, N. M. and Rubin, D. B. (1977). Maximum likelihood from incomplete data via the EM algorithm. <em>Journal of the Royal Statistical Society B</em>, 39(1), 1–38.</li>
+              <li>Glasserman, P. (2004). <em>Monte Carlo Methods in Financial Engineering</em>. Springer.</li>
               <li>Hamilton, J. D. (1989). A new approach to the economic analysis of nonstationary time series and the business cycle. <em>Econometrica</em>, 57(2), 357–384.</li>
               <li>J.P. Morgan/Reuters (1996). <em>RiskMetrics — Technical Document</em>, 4th edition.</li>
               <li>Kupiec, P. H. (1995). Techniques for verifying the accuracy of risk measurement models. <em>Journal of Derivatives</em>, 3(2), 73–84.</li>
               <li>Lanczos, C. (1964). A precision approximation of the gamma function. <em>SIAM Journal on Numerical Analysis, Series B</em>, 1, 86–96.</li>
               <li>Ljung, G. M. and Box, G. E. P. (1978). On a measure of lack of fit in time series models. <em>Biometrika</em>, 65(2), 297–303.</li>
+              <li>Marsaglia, G. and Tsang, W. W. (2000). A simple method for generating gamma variables. <em>ACM Transactions on Mathematical Software</em>, 26(3), 363–372.</li>
               <li>Press, W. H., Teukolsky, S. A., Vetterling, W. T. and Flannery, B. P. (2007). <em>Numerical Recipes</em>, 3rd edition. Cambridge University Press.</li>
               <li>Rabiner, L. R. (1989). A tutorial on hidden Markov models and selected applications in speech recognition. <em>Proceedings of the IEEE</em>, 77(2), 257–286.</li>
               <li>Schwarz, G. (1978). Estimating the dimension of a model. <em>Annals of Statistics</em>, 6(2), 461–464.</li>

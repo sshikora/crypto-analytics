@@ -230,6 +230,54 @@ export const typeDefs = `
     history: RegimeModelHistory!
   }
 
+  type ScenarioFanDay {
+    day: Int!
+    quantiles: [Float!]!
+  }
+
+  type ScenarioTailRisk {
+    confidence: Float!
+    valueAtRisk: Float!
+    expectedShortfall: Float!
+  }
+
+  type ScenarioDrawdown {
+    threshold: Float!
+    probability: Float!
+  }
+
+  type ScenarioBin {
+    lower: Float!
+    upper: Float!
+    probability: Float!
+  }
+
+  type ScenarioHorizon {
+    days: Int!
+    mean: Float!
+    standardError: Float!
+    tailRisk: [ScenarioTailRisk!]!
+    drawdownProbabilities: [ScenarioDrawdown!]!
+    distribution: [ScenarioBin!]!
+  }
+
+  type ScenarioModel {
+    model: String!
+    startingVolatility: Float
+    fan: [ScenarioFanDay!]!
+    horizons: [ScenarioHorizon!]!
+  }
+
+  type Scenario {
+    coinId: String!
+    asOf: String!
+    startPrice: Float!
+    observations: Int!
+    paths: Int!
+    quantiles: [Float!]!
+    models: [ScenarioModel!]!
+  }
+
   type RiskSummary {
     coinId: String!
     asOf: String
@@ -358,6 +406,7 @@ export const typeDefs = `
     riskSummary(coinId: String!): RiskSummary!
     marketRisk: MarketRisk
     regimeModel(coinId: String!): RegimeModel
+    scenario(coinId: String!): Scenario
     userPreferences(userId: String!): UserPreferences
 
     # Notification Queries

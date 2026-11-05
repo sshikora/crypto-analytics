@@ -13,6 +13,7 @@ import {
   simulate,
   studentTModel,
   summarize,
+  truncate,
 } from './monteCarlo';
 import { logReturns } from './returns';
 
@@ -191,5 +192,16 @@ describe('summarize', () => {
 
   it('needs an even number of antithetic paths', () => {
     expect(() => simulate(gbm, { paths: 3, days: 2, seed: 1, antithetic: true })).toThrow();
+  });
+});
+
+describe('truncate', () => {
+  it('keeps the first days of every path', () => {
+    const sim = simulate(gbm, { paths: 6, days: 10, seed: 3, antithetic: true });
+    const short = truncate(sim, 4);
+    expect([short.paths, short.days, short.antithetic]).toEqual([6, 4, true]);
+    for (let p = 0; p < 6; p++) {
+      expect(Array.from(short.cumulative.subarray(p * 4, p * 4 + 4))).toEqual(Array.from(sim.cumulative.subarray(p * 10, p * 10 + 4)));
+    }
   });
 });

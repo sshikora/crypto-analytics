@@ -1,7 +1,7 @@
 import { useSearchParams } from 'react-router-dom';
 import { TimeRange } from '../types/crypto';
 
-export const COIN_TABS = ['overview', 'risk'] as const;
+export const COIN_TABS = ['overview', 'risk', 'scenario'] as const;
 export type CoinTab = (typeof COIN_TABS)[number];
 
 // URL values match the labels on the time range buttons

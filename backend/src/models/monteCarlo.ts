@@ -137,6 +137,16 @@ export function simulate(model: PathModel, { paths, days, seed, antithetic }: Si
   return { paths, days, antithetic, cumulative };
 }
 
+// The first `days` days of every path, so one long simulation also serves shorter horizons
+export function truncate(simulation: Simulation, days: number): Simulation {
+  const { paths, antithetic, cumulative } = simulation;
+  const prefix = new Float64Array(paths * days);
+  for (let p = 0; p < paths; p++) {
+    prefix.set(cumulative.subarray(p * simulation.days, p * simulation.days + days), p * days);
+  }
+  return { paths, days, antithetic, cumulative: prefix };
+}
+
 // numpy's default quantile on already sorted values
 function sortedQuantile(sorted: Float64Array, p: number): number {
   const position = (sorted.length - 1) * p;

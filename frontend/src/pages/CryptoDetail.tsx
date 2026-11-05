@@ -5,6 +5,7 @@ import { PriceChart } from '../components/PriceChart';
 import { MovingAverageChart } from '../components/MovingAverageChart';
 import { GarchPanel } from '../components/GarchPanel';
 import { RegimeModelPanel } from '../components/RegimeModelPanel';
+import { ScenarioPanel } from '../components/ScenarioPanel';
 import { PerformancePanel } from '../components/PerformancePanel';
 import { RegimeBadge } from '../components/RegimeBadge';
 import { StatCard } from '../components/StatCard';
@@ -12,7 +13,15 @@ import { TimeRangeSelector } from '../components/TimeRangeSelector';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { SEO } from '../components/SEO';
 import NotificationRulesList from '../components/NotificationRulesList';
-import { GET_CRYPTOCURRENCY, GET_PRICE_HISTORY, GET_MARKET_STATS, GET_REGIME, GET_REGIME_MODEL, GET_RISK_SUMMARY } from '../services/queries';
+import {
+  GET_CRYPTOCURRENCY,
+  GET_PRICE_HISTORY,
+  GET_MARKET_STATS,
+  GET_REGIME,
+  GET_REGIME_MODEL,
+  GET_RISK_SUMMARY,
+  GET_SCENARIO,
+} from '../services/queries';
 import { TimeRange } from '../types/crypto';
 import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
@@ -25,6 +34,7 @@ import { track } from '../services/analytics';
 const TABS: TabItem<CoinTab>[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'risk', label: 'Risk' },
+  { id: 'scenario', label: 'Scenario' },
 ];
 
 export const CryptoDetail: React.FC = () => {
@@ -65,6 +75,11 @@ export const CryptoDetail: React.FC = () => {
   const { data: regimeModelData } = useQuery(GET_REGIME_MODEL, {
     variables: { coinId: coinGeckoId },
     skip: !coinGeckoId || tab !== 'risk',
+  });
+
+  const { data: scenarioData, loading: scenarioLoading, error: scenarioError } = useQuery(GET_SCENARIO, {
+    variables: { coinId: coinGeckoId },
+    skip: !coinGeckoId || tab !== 'scenario',
   });
 
   const coinLoaded = Boolean(cryptoData?.cryptocurrency);
@@ -343,6 +358,28 @@ export const CryptoDetail: React.FC = () => {
               <RegimeModelPanel model={regimeModelData.regimeModel} />
             </div>
           )}
+        </div>
+      )}
+
+      {tab === 'scenario' && (
+        <div role="tabpanel" id={tabPanelId('coin', 'scenario')} aria-labelledby={tabId('coin', 'scenario')} className="space-y-6">
+          <Disclaimer />
+          <div className="card">
+            {scenarioLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+              </div>
+            ) : scenarioError ? (
+              <p className="text-sm text-red-500">Couldn't load the scenario: {scenarioError.message}</p>
+            ) : scenarioData?.scenario ? (
+              <ScenarioPanel scenario={scenarioData.scenario} />
+            ) : (
+              <p className="text-sm text-gray-600">
+                No scenario for {crypto.name} yet. Scenarios are simulated each night for the 100 largest coins with at
+                least 120 days of prices.
+              </p>
+            )}
+          </div>
         </div>
       )}
       </div>
