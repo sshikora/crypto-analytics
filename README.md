@@ -1,6 +1,6 @@
 # CryptoQuantLab
 
-Risk analytics for the 100 largest cryptocurrencies: realized and forecast volatility, GARCH with diagnostics, one-day Value at Risk and expected shortfall with out-of-sample backtests, regimes, and Monte Carlo scenarios of the next 7 to 90 days, plus portfolio construction that isn't on the site yet. The models are implemented in TypeScript and checked against an independent Python reference built on numpy, scipy, statsmodels, `arch`, scikit-learn and PyPortfolioOpt. The hidden Markov model is fitted in Python by a nightly job and checked against hmmlearn and statsmodels.
+Risk analytics for the 100 largest cryptocurrencies: realized and forecast volatility, GARCH with diagnostics, one-day Value at Risk and expected shortfall with out-of-sample backtests, regimes, and Monte Carlo scenarios of the next 7 to 90 days, plus portfolio construction and a signal backtester that aren't on the site yet. The models are implemented in TypeScript and checked against an independent Python reference built on numpy, scipy, statsmodels, `arch`, scikit-learn and PyPortfolioOpt. The hidden Markov model is fitted in Python by a nightly job and checked against hmmlearn and statsmodels.
 
 **Live:** https://cryptoquantlab.com — open any coin and choose the **Risk** or **Scenario** tab. The [Markets page](https://cryptoquantlab.com/markets) sorts the top 100 by volatility, drawdown and VaR, and shows each coin's regime. The [Methodology page](https://cryptoquantlab.com/methodology) has every model's formulas, assumptions, validation and references, next to today's numbers for Bitcoin.
 
@@ -23,7 +23,8 @@ All models run on stored daily closes (00:00 UTC) for the last 365 days. Nightly
 | Probability functions | Log-gamma (Lanczos), incomplete gamma and beta (Lentz continued fractions), normal and Student-t pdf, cdf and quantile, chi-square tail | [`distributions.ts`](backend/src/models/distributions.ts) |
 | Covariance | Sample covariance; Ledoit-Wolf shrinkage towards a scaled identity and towards constant correlation | [`covariance.ts`](backend/src/models/covariance.ts) |
 | Portfolios | Long-only minimum variance and efficient frontier by a primal active-set method; risk parity by Newton's method on Spinu's convex form; risk contributions. Not on the site yet | [`portfolio.ts`](backend/src/models/portfolio.ts) |
-| Monte Carlo paths | Normal, Student-t and GARCH bootstrap (filtered historical simulation) paths of daily log returns, with optional antithetic pairs. Fan quantiles, horizon VaR and ES, and drawdown probabilities. numpy's SFC64 generator, Box-Muller normals, Marsaglia-Tsang gammas. The Scenario tab simulates 10,000 paths of 90 days from each model, fitted to the last 180 returns with no drift |  [`monteCarlo.ts`](backend/src/models/monteCarlo.ts), [`random.ts`](backend/src/models/random.ts), [`scenarioService.ts`](backend/src/services/scenarioService.ts) |
+| Signal backtests | Moving-average crossover positions; returns net of a proportional trading cost; walk-forward selection among variants; probabilistic and deflated Sharpe ratios (Bailey and López de Prado), with correlated variants counted as fewer independent trials. Not on the site yet | [`signals.ts`](backend/src/models/signals.ts), [`backtest.ts`](backend/src/models/backtest.ts), [`sharpeInference.ts`](backend/src/models/sharpeInference.ts) |
+| Monte Carlo paths | Normal, Student-t and GARCH bootstrap (filtered historical simulation) paths of daily log returns, with optional antithetic pairs. Fan quantiles, horizon VaR and ES, and drawdown probabilities. numpy's SFC64 generator, Box-Muller normals, Marsaglia-Tsang gammas. The Scenario tab simulates 10,000 paths of 90 days from each model, fitted to the last 180 returns with no drift | [`monteCarlo.ts`](backend/src/models/monteCarlo.ts), [`random.ts`](backend/src/models/random.ts), [`scenarioService.ts`](backend/src/services/scenarioService.ts) |
 
 ## How the models are validated
 
@@ -46,6 +47,7 @@ All models run on stored daily closes (00:00 UTC) for the last 365 days. Nightly
 | Hidden Markov model, in Python | Enumerating every state path; hmmlearn; statsmodels `MarkovRegression` | Recursions 1e-12, EM iterates 1e-9, likelihood 1e-9; 20 statsmodels restarts find nothing higher |
 | Covariance shrinkage | scikit-learn `LedoitWolf` (identity target); PyPortfolioOpt (constant correlation, on the same divide-by-n covariance) | 1e-12 |
 | Portfolios | scipy SLSQP, then the optimality conditions solved exactly on the assets it holds; closed forms for two assets and uncorrelated assets | weights 1e-10 (minimum variance), 1e-9 (frontier); optimality conditions and equal risk shares 1e-12 |
+| Signal backtests | pandas `rolling().mean()` and the same costed returns computed a second way (1e-12); the numerical example in Bailey and López de Prado (2014) | positions and walk-forward choices identical; returns 1e-15; Sharpe statistics 1e-12 |
 | Monte Carlo | numpy's SFC64; scipy Kolmogorov-Smirnov tests; closed forms for the normal fan and the GARCH variance path | generator bit for bit; whole paths 1e-12 for every model, with and without antithetic pairs |
 
 The validation turned up real bugs:
@@ -114,18 +116,33 @@ Minimum variance cut volatility a lot, but by holding very few coins, mostly TRO
 
 In simulation, shrinking towards the identity, scikit-learn's default, made minimum variance worse than no shrinkage, because it pulls correlations towards zero. Shrinking towards a constant correlation roughly halved the excess risk. On real coins the three estimates were within two percentage points, in the same order.
 
+### Do moving-average crossovers time the market?
+
+The 15 crossovers of a 1, 5, 10 or 20-day average over a 20, 30, 50 or 100-day one were backtested on the 70 coins with a full year of history and daily volatility of at least 0.5%, at 15 basis points a trade:
+
+| Best of 15 crossovers, 278 days | Coins passing | Passing on shuffled, demeaned prices |
+|---|---|---|
+| Probabilistic Sharpe ratio > 0.95 | 8.6% | 11.5% |
+| Deflated Sharpe ratio > 0.95, 15 trials | 5.7% | 1.1% |
+| Deflated Sharpe ratio > 0.95, about 4 implied independent trials | 7.1% | 2.6% |
+| Timing p-value < 0.05 against the coin's own returns shuffled | 1.4% (1 coin) | |
+
+The undeflated test passed the best crossover on pure noise more than twice as often as it should, and deflating for all 15 overcorrected because the crossovers are highly correlated. The coins that passed the deflated test were mostly coins that rose anyway: the test asks whether the Sharpe ratio is above zero, not whether the timing helped. A permutation test of timing found one coin below 0.05, where chance alone would give three or four.
+
+Out of sample, retraining on 120 days and holding the winner for 30, the median Sharpe ratio fell from 0.73 for the best in-sample crossover to 0.32, against 0.35 for holding the coin over the same 158 days. The crossover beat holding on 53% of coins while spending about half its time out of the market.
+
 ### Notebooks
 
-Five notebooks in [`validation/notebooks/`](validation/notebooks/) write up the main models in full, with their outputs:
+Six notebooks in [`validation/notebooks/`](validation/notebooks/) write up the main models in full, with their outputs:
 
 - [`garch.ipynb`](validation/notebooks/garch.ipynb): the data's fat tails; the model and likelihood; estimation compared with `arch`; the likelihood surface; a simulation study of how well a year of data identifies the parameters; diagnostics; forecasts; limitations.
 - [`value_at_risk.ipynb`](validation/notebooks/value_at_risk.ipynb): the four VaR and ES methods; the Student-t fit; rolling out-of-sample VaR with every exception marked; Kupiec and Christoffersen tests; the power of a one-year backtest; limitations.
 - [`hmm.ipynb`](validation/notebooks/hmm.ipynb): the model and recursions; the fit compared with statsmodels; filtered and smoothed probabilities; how many states; what a year identifies; a walk-forward test against GARCH, EWMA and a threshold; limitations.
 - [`monte_carlo.ipynb`](validation/notebooks/monte_carlo.ipynb): the three path models; random numbers tested against scipy; checks against closed forms; Monte Carlo error and what antithetic pairs do; Bitcoin's next 30 days; an out-of-sample test of 10-day VaR across coins; limitations.
-
 - [`portfolio.ipynb`](validation/notebooks/portfolio.ipynb): two Ledoit-Wolf targets checked against scikit-learn and PyPortfolioOpt; a simulation of when shrinkage helps; minimum variance, risk parity and the frontier; an out-of-sample comparison on the top 20 coins, with and without TRON; limitations.
+- [`backtest.ipynb`](validation/notebooks/backtest.ipynb): costed returns checked against pandas; the probabilistic and deflated Sharpe ratios against the paper's example; how often each passes on pure noise; crossovers on 70 coins in sample, against shuffled prices and walk-forward; limitations.
 
-`uv run scripts/build_notebooks.py` regenerates and re-executes all five.
+`uv run scripts/build_notebooks.py` regenerates and re-executes all six.
 
 ### Running the validation
 
@@ -135,7 +152,7 @@ uv sync
 uv run scripts/make_var_fixtures.py      # one script per model; each prints its results
 ```
 
-The fixtures land in `backend/src/test/fixtures/`. The sample data is CoinGecko's daily Bitcoin and Ethereum series, in `validation/data/`, with the per-coin results of the hidden Markov and Monte Carlo cross-sections in `hmm_cross_section.csv` and `monte_carlo_cross_section.csv`, the Monte Carlo exceptions by period in `monte_carlo_periods.csv`, and the portfolio comparison's results in `portfolio_backtest_summary.csv` and `portfolio_backtest_periods.csv`. The hidden Markov model's tests run with `uv run pytest` in `batch/`.
+The fixtures land in `backend/src/test/fixtures/`. The sample data is CoinGecko's daily Bitcoin and Ethereum series, in `validation/data/`, with the per-coin results of the hidden Markov and Monte Carlo cross-sections in `hmm_cross_section.csv` and `monte_carlo_cross_section.csv`, the Monte Carlo exceptions by period in `monte_carlo_periods.csv`, the portfolio comparison's results in `portfolio_backtest_summary.csv` and `portfolio_backtest_periods.csv`, and the crossover backtests' per-coin results and shuffled-price searches in `crossover_backtest_coins.csv` and `crossover_backtest_null.csv`. The hidden Markov model's tests run with `uv run pytest` in `batch/`.
 
 ## Architecture
 
@@ -238,6 +255,7 @@ Data provided by CoinGecko.
 ## Not yet built
 
 - A portfolio page built on the portfolio models, with a maximum weight per coin, which the optimizer doesn't support yet.
+- A Signals tab built on the backtester, showing each signal's walk-forward results and deflated Sharpe ratio next to holding the coin.
 
 ## Disclaimer
 
