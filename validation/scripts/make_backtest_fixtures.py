@@ -39,6 +39,18 @@ def psr_from_moments(sr: float, benchmark: float, t: int, skew: float, kurt: flo
     return float(stats.norm.cdf(z))
 
 
+def check_round_trips(positions: np.ndarray, net: np.ndarray) -> None:
+    """Compounding every trip and the flat days between them must give the strategy's whole return."""
+    trips = bt.round_trips(positions, net)
+    inside = np.zeros(len(net), dtype=bool)
+    for t in trips:
+        inside[t.start : t.end + 1] = True
+    if np.any(net[~inside] != 0):
+        raise SystemExit("a flat day outside every trip has a nonzero return")
+    total = np.prod([1 + t.ret for t in trips])
+    check("round trips", total, float(np.prod(1 + net)))
+
+
 def check_paper() -> None:
     sr = 2.5 / np.sqrt(250)
     variance = 0.5 / 250
@@ -73,6 +85,7 @@ def main() -> None:
     evaluated = [np.array(v["returns"])[start:] for v in variants]
     sharpes = np.array([bt.sharpe(r) for r in evaluated])
     best = int(np.argmax(sharpes))
+    check_round_trips(np.array(variants[best]["positions"]), np.array(variants[best]["returns"]))
     if min(r.std() for r in evaluated) == 0:
         raise SystemExit("a variant never traded, so its correlation is undefined")
     implied = bt.implied_trials(np.array(evaluated))
@@ -101,6 +114,7 @@ def main() -> None:
             "chosen": wf.chosen,
             "positions": wf.positions.tolist(),
             "returns": wf.returns.tolist(),
+            "roundTrips": [vars(t) for t in bt.round_trips(wf.positions, wf.returns)],
         },
     }
     path = FIXTURE_DIR / "btc_crossovers.json"

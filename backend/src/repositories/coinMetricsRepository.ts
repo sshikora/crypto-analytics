@@ -2,6 +2,7 @@ import { PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { dynamodb } from '../db/dynamodb';
 import type { MarketRiskRow, RegimeModel, RiskSummary } from '../services/riskService';
 import type { Scenario } from '../services/scenarioService';
+import type { SignalSummary } from '../services/signalService';
 
 export interface StoredRiskSummary {
   riskSummary: RiskSummary;
@@ -14,9 +15,16 @@ const MARKET_KEY = '__market__';
 // Written by the Python fit-regimes job as a JSON string
 const REGIME_MODEL_PREFIX = '__hmm__';
 const SCENARIO_PREFIX = '__scenario__';
+const SIGNALS_PREFIX = '__signals__';
 
 export interface StoredScenario {
   scenario: Scenario;
+  version: number;
+  computedAt: string;
+}
+
+export interface StoredSignals {
+  signals: SignalSummary;
   version: number;
   computedAt: string;
 }
@@ -126,4 +134,28 @@ export async function getLatestScenario(coinId: string): Promise<StoredScenario 
   );
   const row = result.Items?.[0];
   return row ? { scenario: JSON.parse(row.scenario), version: row.version, computedAt: row.computedAt } : null;
+}
+
+export async function saveSignals(signals: SignalSummary, version: number, computedAt: string): Promise<void> {
+  await dynamodb.send(
+    new PutCommand({
+      TableName: tableName(),
+      Item: { coinId: SIGNALS_PREFIX + signals.coinId, date: signals.asOf, version, computedAt, signals: JSON.stringify(signals) },
+    })
+  );
+}
+
+export async function getLatestSignals(coinId: string): Promise<StoredSignals | null> {
+  const result = await dynamodb.send(
+    new QueryCommand({
+      TableName: tableName(),
+      KeyConditionExpression: '#coinId = :coinId',
+      ExpressionAttributeNames: { '#coinId': 'coinId' },
+      ExpressionAttributeValues: { ':coinId': SIGNALS_PREFIX + coinId },
+      ScanIndexForward: false,
+      Limit: 1,
+    })
+  );
+  const row = result.Items?.[0];
+  return row ? { signals: JSON.parse(row.signals), version: row.version, computedAt: row.computedAt } : null;
 }

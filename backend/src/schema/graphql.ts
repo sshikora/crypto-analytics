@@ -278,6 +278,77 @@ export const typeDefs = `
     models: [ScenarioModel!]!
   }
 
+  type CrossoverVariant {
+    short: Int!
+    long: Int!
+    position: Int!
+    since: String
+    sharpe: Float!
+    totalReturn: Float!
+    trades: Int!
+    timeInMarket: Float!
+  }
+
+  type PerformanceLine {
+    sharpe: Float!
+    totalReturn: Float!
+    maxDrawdown: Float!
+  }
+
+  type BestCrossover {
+    short: Int!
+    long: Int!
+    sharpe: Float!
+    probabilisticSharpe: Float!
+    deflatedSharpe: Float!
+  }
+
+  type WalkForwardFold {
+    from: String!
+    short: Int!
+    long: Int!
+  }
+
+  type OpenTrade {
+    since: String!
+    return: Float!
+  }
+
+  type EquityPoint {
+    date: String!
+    strategy: Float!
+    holding: Float!
+  }
+
+  type WalkForwardResult {
+    from: String!
+    days: Int!
+    strategy: PerformanceLine!
+    holding: PerformanceLine!
+    timeInMarket: Float!
+    trades: Int!
+    closedTrades: Int!
+    winRate: Float
+    openTrade: OpenTrade
+    folds: [WalkForwardFold!]!
+    equity: [EquityPoint!]!
+  }
+
+  type SignalSummary {
+    coinId: String!
+    asOf: String!
+    cost: Float!
+    evaluatedFrom: String!
+    observations: Int!
+    variants: [CrossoverVariant!]!
+    impliedTrials: Float!
+    best: BestCrossover!
+    holding: PerformanceLine!
+    walkForward: WalkForwardResult!
+    timingPValue: Float!
+    shuffles: Int!
+  }
+
   type RiskSummary {
     coinId: String!
     asOf: String
@@ -407,6 +478,7 @@ export const typeDefs = `
     marketRisk: MarketRisk
     regimeModel(coinId: String!): RegimeModel
     scenario(coinId: String!): Scenario
+    signals(coinId: String!): SignalSummary
     userPreferences(userId: String!): UserPreferences
 
     # Notification Queries

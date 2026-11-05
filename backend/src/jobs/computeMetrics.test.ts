@@ -2,8 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { computeMetrics } from './computeMetrics';
 import { coinGeckoService } from '../services/coinGeckoService';
 import { computeRiskSummary, loadBenchmarkPrices, RISK_SUMMARY_VERSION, RiskSummary } from '../services/riskService';
-import { saveMarketSnapshot, saveRiskSummary, saveScenario } from '../repositories/coinMetricsRepository';
+import { saveMarketSnapshot, saveRiskSummary, saveScenario, saveSignals } from '../repositories/coinMetricsRepository';
 import { computeScenario, Scenario, SCENARIO_VERSION } from '../services/scenarioService';
+import { computeSignals, SignalSummary, SIGNALS_VERSION } from '../services/signalService';
 
 vi.mock('../services/coinGeckoService', () => ({ coinGeckoService: { getMarketData: vi.fn() } }));
 vi.mock('../services/riskService', async (importOriginal) => ({
@@ -15,10 +16,15 @@ vi.mock('../services/scenarioService', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../services/scenarioService')>()),
   computeScenario: vi.fn(),
 }));
+vi.mock('../services/signalService', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/signalService')>()),
+  computeSignals: vi.fn(),
+}));
 vi.mock('../repositories/coinMetricsRepository', () => ({
   saveRiskSummary: vi.fn(),
   saveMarketSnapshot: vi.fn(),
   saveScenario: vi.fn(),
+  saveSignals: vi.fn(),
 }));
 
 const now = new Date('2026-10-26T01:00:00Z');
@@ -50,6 +56,17 @@ describe('computeMetrics', () => {
     vi.mocked(computeScenario).mockImplementation(async (coinId) =>
       coinId === 'ethereum' ? null : ({ coinId, asOf: '2026-10-26' } as Scenario)
     );
+    vi.mocked(computeSignals).mockImplementation(async (coinId) =>
+      coinId === 'ethereum' ? null : ({ coinId, asOf: '2026-10-26' } as SignalSummary)
+    );
+  });
+
+  it("stores each coin's signal backtests when it has enough history", async () => {
+    await computeMetrics({ now, retryDelaysMs: [] });
+
+    expect(computeSignals).toHaveBeenCalledWith('bitcoin', now.getTime());
+    expect(saveSignals).toHaveBeenCalledTimes(1);
+    expect(saveSignals).toHaveBeenCalledWith({ coinId: 'bitcoin', asOf: '2026-10-26' }, SIGNALS_VERSION, '2026-10-26T01:00:00.000Z');
   });
 
   it("stores each coin's scenario when it has enough history", async () => {

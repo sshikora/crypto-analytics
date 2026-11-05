@@ -29,6 +29,9 @@ Conventions:
   returns after them (the last fold may be shorter). The variant with the highest training Sharpe ratio, the first
   on ties, is held through the test days. Test positions are spliced together and costed as one strategy that
   starts flat, so switching variants between folds pays for the trade.
+- A round trip is a run of days with a position, from the day it is opened to the day it is closed, both included,
+  so it pays the cost of buying and of selling. Its return compounds the net returns over those days. A trade
+  still open at the end is marked open and has paid only to buy.
 """
 
 from dataclasses import dataclass
@@ -121,3 +124,30 @@ def walk_forward(
     first = start + train
     window = prices[first : first + len(positions) + 1]
     return WalkForward(chosen, positions, strategy_returns(window, np.append(positions, 0.0), cost))
+
+
+@dataclass
+class RoundTrip:
+    start: int
+    end: int
+    ret: float
+    open: bool
+
+
+def round_trips(positions: np.ndarray, net: np.ndarray) -> list[RoundTrip]:
+    """net[i] is the net return of holding positions[i], including the cost of changing from positions[i - 1]."""
+    trips = []
+    i = 0
+    n = len(net)
+    while i < n:
+        if positions[i] > 0 and (i == 0 or positions[i - 1] == 0):
+            j = i + 1
+            while j < n and positions[j] > 0:
+                j += 1
+            closed = j < n
+            end = j if closed else n - 1
+            trips.append(RoundTrip(i, end, float(np.prod(1 + net[i : end + 1]) - 1), not closed))
+            i = end + 1
+        else:
+            i += 1
+    return trips
