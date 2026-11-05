@@ -25,7 +25,7 @@ describe('useCoinPageParams', () => {
   });
 
   it('falls back to defaults for unknown values', () => {
-    const { result } = renderAt('/crypto/BTC?tab=signals&range=5y');
+    const { result } = renderAt('/crypto/BTC?tab=portfolio&range=5y');
     expect(result.current.params.tab).toBe('overview');
     expect(result.current.params.range).toBe(TimeRange.MONTH);
   });

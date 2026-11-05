@@ -309,6 +309,102 @@ export const GET_SCENARIO = gql`
   }
 `;
 
+export const GET_SIGNALS = gql`
+  query GetSignals($coinId: String!) {
+    signals(coinId: $coinId) {
+      coinId
+      asOf
+      cost
+      evaluatedFrom
+      observations
+      variants {
+        short
+        long
+        position
+        since
+        sharpe
+        totalReturn
+        trades
+        timeInMarket
+      }
+      impliedTrials
+      best {
+        short
+        long
+        sharpe
+        probabilisticSharpe
+        deflatedSharpe
+      }
+      holding {
+        sharpe
+        totalReturn
+        maxDrawdown
+      }
+      walkForward {
+        from
+        days
+        strategy {
+          sharpe
+          totalReturn
+          maxDrawdown
+        }
+        holding {
+          sharpe
+          totalReturn
+          maxDrawdown
+        }
+        timeInMarket
+        trades
+        closedTrades
+        winRate
+        openTrade {
+          since
+          return
+        }
+        folds {
+          from
+          short
+          long
+        }
+        equity {
+          date
+          strategy
+          holding
+        }
+      }
+      timingPValue
+      shuffles
+    }
+  }
+`;
+
+// The Methodology page's live line needs only the headline tests
+export const GET_SIGNALS_EVIDENCE = gql`
+  query GetSignalsEvidence($coinId: String!) {
+    signals(coinId: $coinId) {
+      coinId
+      asOf
+      impliedTrials
+      best {
+        short
+        long
+        sharpe
+        deflatedSharpe
+      }
+      walkForward {
+        days
+        strategy {
+          sharpe
+        }
+        holding {
+          sharpe
+        }
+      }
+      timingPValue
+    }
+  }
+`;
+
 // The Methodology page's live line needs only each model's tail risk
 export const GET_SCENARIO_TAIL_RISK = gql`
   query GetScenarioTailRisk($coinId: String!) {

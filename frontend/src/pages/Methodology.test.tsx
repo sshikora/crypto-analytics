@@ -78,6 +78,7 @@ describe('Methodology', () => {
       'Value at Risk and expected shortfall',
       'VaR backtesting',
       'Monte Carlo scenarios',
+      'Signal backtests',
       'Return, drawdown and beta',
       'Regime',
       'Hidden Markov model',
@@ -144,6 +145,28 @@ describe('Methodology', () => {
 
     expect(screen.getByText('30-day 95% VaR: GARCH bootstrap 15.4% · Student-t 16.5% · Normal 15.5%')).toBeInTheDocument();
     expect(screen.getByText('Monte Carlo')).toBeInTheDocument();
+  });
+
+  it("shows Bitcoin's live signal tests", () => {
+    vi.mocked(useQuery).mockReturnValue({
+      data: {
+        riskSummary: bitcoin,
+        signals: {
+          asOf: '2026-11-05',
+          impliedTrials: 5.14,
+          best: { short: 1, long: 20, sharpe: 1.08, deflatedSharpe: 0.64 },
+          walkForward: { days: 145, strategy: { sharpe: 1.29 }, holding: { sharpe: 0.97 } },
+          timingPValue: 0.184,
+        },
+      },
+    } as never);
+
+    renderPage();
+
+    expect(
+      screen.getByText(/Best crossover price \/ 20d, Sharpe 1\.08 · deflated Sharpe ratio 64% with about 5\.1 independent trials · timing p = 0\.18 · walk-forward Sharpe 1\.29 against 0\.97 holding over 145 days/)
+    ).toBeInTheDocument();
+    expect(screen.getByText('Timing test p below 0.05')).toBeInTheDocument();
   });
 
   it('explains why the threshold badge was kept', () => {

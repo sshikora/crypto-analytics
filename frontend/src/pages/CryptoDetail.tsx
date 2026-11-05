@@ -6,6 +6,7 @@ import { MovingAverageChart } from '../components/MovingAverageChart';
 import { GarchPanel } from '../components/GarchPanel';
 import { RegimeModelPanel } from '../components/RegimeModelPanel';
 import { ScenarioPanel } from '../components/ScenarioPanel';
+import { SignalsPanel } from '../components/SignalsPanel';
 import { PerformancePanel } from '../components/PerformancePanel';
 import { RegimeBadge } from '../components/RegimeBadge';
 import { StatCard } from '../components/StatCard';
@@ -21,6 +22,7 @@ import {
   GET_REGIME_MODEL,
   GET_RISK_SUMMARY,
   GET_SCENARIO,
+  GET_SIGNALS,
 } from '../services/queries';
 import { TimeRange } from '../types/crypto';
 import { format } from 'date-fns';
@@ -34,6 +36,7 @@ import { track } from '../services/analytics';
 const TABS: TabItem<CoinTab>[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'risk', label: 'Risk' },
+  { id: 'signals', label: 'Signals' },
   { id: 'scenario', label: 'Scenario' },
 ];
 
@@ -80,6 +83,11 @@ export const CryptoDetail: React.FC = () => {
   const { data: scenarioData, loading: scenarioLoading, error: scenarioError } = useQuery(GET_SCENARIO, {
     variables: { coinId: coinGeckoId },
     skip: !coinGeckoId || tab !== 'scenario',
+  });
+
+  const { data: signalsData, loading: signalsLoading, error: signalsError } = useQuery(GET_SIGNALS, {
+    variables: { coinId: coinGeckoId },
+    skip: !coinGeckoId || tab !== 'signals',
   });
 
   const coinLoaded = Boolean(cryptoData?.cryptocurrency);
@@ -358,6 +366,28 @@ export const CryptoDetail: React.FC = () => {
               <RegimeModelPanel model={regimeModelData.regimeModel} />
             </div>
           )}
+        </div>
+      )}
+
+      {tab === 'signals' && (
+        <div role="tabpanel" id={tabPanelId('coin', 'signals')} aria-labelledby={tabId('coin', 'signals')} className="space-y-6">
+          <Disclaimer />
+          <div className="card">
+            {signalsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+              </div>
+            ) : signalsError ? (
+              <p className="text-sm text-red-500">Couldn't load the signals: {signalsError.message}</p>
+            ) : signalsData?.signals ? (
+              <SignalsPanel signals={signalsData.signals} />
+            ) : (
+              <p className="text-sm text-gray-600">
+                No signal backtests for {crypto.name} yet. They are computed each night for the 100 largest coins with at
+                least 250 days of prices.
+              </p>
+            )}
+          </div>
         </div>
       )}
 

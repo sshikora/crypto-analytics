@@ -1,8 +1,8 @@
 # CryptoQuantLab
 
-Risk analytics for the 100 largest cryptocurrencies: realized and forecast volatility, GARCH with diagnostics, one-day Value at Risk and expected shortfall with out-of-sample backtests, regimes, and Monte Carlo scenarios of the next 7 to 90 days, plus portfolio construction and a signal backtester that aren't on the site yet. The models are implemented in TypeScript and checked against an independent Python reference built on numpy, scipy, statsmodels, `arch`, scikit-learn and PyPortfolioOpt. The hidden Markov model is fitted in Python by a nightly job and checked against hmmlearn and statsmodels.
+Risk analytics for the 100 largest cryptocurrencies: realized and forecast volatility, GARCH with diagnostics, one-day Value at Risk and expected shortfall with out-of-sample backtests, regimes, Monte Carlo scenarios of the next 7 to 90 days, and moving-average crossovers backtested walk-forward with deflated Sharpe ratios and a permutation test, plus portfolio construction that isn't on the site yet. The models are implemented in TypeScript and checked against an independent Python reference built on numpy, scipy, statsmodels, `arch`, scikit-learn and PyPortfolioOpt. The hidden Markov model is fitted in Python by a nightly job and checked against hmmlearn and statsmodels.
 
-**Live:** https://cryptoquantlab.com — open any coin and choose the **Risk** or **Scenario** tab. The [Markets page](https://cryptoquantlab.com/markets) sorts the top 100 by volatility, drawdown and VaR, and shows each coin's regime. The [Methodology page](https://cryptoquantlab.com/methodology) has every model's formulas, assumptions, validation and references, next to today's numbers for Bitcoin.
+**Live:** https://cryptoquantlab.com — open any coin and choose the **Risk**, **Signals** or **Scenario** tab. The [Markets page](https://cryptoquantlab.com/markets) sorts the top 100 by volatility, drawdown and VaR, and shows each coin's regime. The [Methodology page](https://cryptoquantlab.com/methodology) has every model's formulas, assumptions, validation and references, next to today's numbers for Bitcoin.
 
 ## What it computes
 
@@ -23,7 +23,7 @@ All models run on stored daily closes (00:00 UTC) for the last 365 days. Nightly
 | Probability functions | Log-gamma (Lanczos), incomplete gamma and beta (Lentz continued fractions), normal and Student-t pdf, cdf and quantile, chi-square tail | [`distributions.ts`](backend/src/models/distributions.ts) |
 | Covariance | Sample covariance; Ledoit-Wolf shrinkage towards a scaled identity and towards constant correlation | [`covariance.ts`](backend/src/models/covariance.ts) |
 | Portfolios | Long-only minimum variance and efficient frontier by a primal active-set method; risk parity by Newton's method on Spinu's convex form; risk contributions. Not on the site yet | [`portfolio.ts`](backend/src/models/portfolio.ts) |
-| Signal backtests | Moving-average crossover positions; returns net of a proportional trading cost; walk-forward selection among variants; probabilistic and deflated Sharpe ratios (Bailey and López de Prado), with correlated variants counted as fewer independent trials. Not on the site yet | [`signals.ts`](backend/src/models/signals.ts), [`backtest.ts`](backend/src/models/backtest.ts), [`sharpeInference.ts`](backend/src/models/sharpeInference.ts) |
+| Signal backtests | Moving-average crossover positions; returns net of a proportional trading cost; walk-forward selection among variants; probabilistic and deflated Sharpe ratios (Bailey and López de Prado), with correlated variants counted as fewer independent trials; round trips; a timing p-value from 200 reruns on shuffled returns. The Signals tab shows 15 crossovers on each coin |  [`signals.ts`](backend/src/models/signals.ts), [`backtest.ts`](backend/src/models/backtest.ts), [`sharpeInference.ts`](backend/src/models/sharpeInference.ts), [`signalService.ts`](backend/src/services/signalService.ts) |
 | Monte Carlo paths | Normal, Student-t and GARCH bootstrap (filtered historical simulation) paths of daily log returns, with optional antithetic pairs. Fan quantiles, horizon VaR and ES, and drawdown probabilities. numpy's SFC64 generator, Box-Muller normals, Marsaglia-Tsang gammas. The Scenario tab simulates 10,000 paths of 90 days from each model, fitted to the last 180 returns with no drift | [`monteCarlo.ts`](backend/src/models/monteCarlo.ts), [`random.ts`](backend/src/models/random.ts), [`scenarioService.ts`](backend/src/services/scenarioService.ts) |
 
 ## How the models are validated
@@ -184,7 +184,7 @@ flowchart LR
 
 - **Nightly pipeline.**
   - `ingest-prices` stores the midnight close, market cap and volume for the top 100 coins. A coin new to the top 100 gets a year of history in one run.
-  - `compute-metrics` runs every model above for each coin and stores the result, plus one snapshot row of every coin's headline numbers for the Markets table. It also simulates each coin's Monte Carlo scenario, about a second per coin, which is too slow to run on a request.
+  - `compute-metrics` runs every model above for each coin and stores the result, plus one snapshot row of every coin's headline numbers for the Markets table. It also simulates each coin's Monte Carlo scenario and backtests its crossovers, including 200 shuffled reruns for the timing test; together about a second per coin, too slow to run on a request.
   - `fit-regimes` fits the hidden Markov model for each coin. It runs from its own Python image, takes its coin list from that snapshot, and gets no secrets.
   - Each job has a missed-run and a failed-run alarm.
 - **API.**
@@ -209,7 +209,7 @@ backend/
   src/resolvers/     GraphQL resolvers; schema in src/schema/graphql.ts
   src/test/fixtures/ Fixtures written by validation/
 frontend/
-  src/pages/         Dashboard, Markets, Methodology, coin page (Overview, Risk and Scenario tabs)
+  src/pages/         Dashboard, Markets, Methodology, coin page (Overview, Risk, Signals and Scenario tabs)
   src/components/    MetricCard, ValueAtRiskPanel, GarchPanel, charts
 batch/
   cql_batch/         Hidden Markov model and the nightly fit-regimes job
@@ -255,7 +255,6 @@ Data provided by CoinGecko.
 ## Not yet built
 
 - A portfolio page built on the portfolio models, with a maximum weight per coin, which the optimizer doesn't support yet.
-- A Signals tab built on the backtester, showing each signal's walk-forward results and deflated Sharpe ratio next to holding the coin.
 
 ## Disclaimer
 

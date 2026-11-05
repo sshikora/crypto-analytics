@@ -1,6 +1,7 @@
 import { coinGeckoService } from '../services/coinGeckoService';
 import { getMarketRisk, getRegimeModel, getRiskSummary } from '../services/riskService';
 import { getScenario } from '../services/scenarioService';
+import { getSignals } from '../services/signalService';
 
 const TIME_RANGE_TO_DAYS: Record<string, number> = {
   DAY: 1,
@@ -140,6 +141,7 @@ export const resolvers = {
     marketRisk: () => getMarketRisk(),
     regimeModel: (_: any, { coinId }: { coinId: string }) => getRegimeModel(coinId),
     scenario: (_: any, { coinId }: { coinId: string }) => getScenario(coinId),
+    signals: (_: any, { coinId }: { coinId: string }) => getSignals(coinId),
 
     topCryptocurrencies: async (_: any, { limit = 10 }: { limit?: number }) => {
       try {

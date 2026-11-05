@@ -135,6 +135,50 @@ export interface Scenario {
   models: ScenarioModel[];
 }
 
+export interface CrossoverVariant {
+  short: number;
+  long: number;
+  position: number;
+  since: string | null;
+  sharpe: number;
+  totalReturn: number;
+  trades: number;
+  timeInMarket: number;
+}
+
+export interface PerformanceLine {
+  sharpe: number;
+  totalReturn: number;
+  maxDrawdown: number;
+}
+
+export interface SignalSummary {
+  coinId: string;
+  asOf: string;
+  cost: number;
+  evaluatedFrom: string;
+  observations: number;
+  variants: CrossoverVariant[];
+  impliedTrials: number;
+  best: { short: number; long: number; sharpe: number; probabilisticSharpe: number; deflatedSharpe: number };
+  holding: PerformanceLine;
+  walkForward: {
+    from: string;
+    days: number;
+    strategy: PerformanceLine;
+    holding: PerformanceLine;
+    timeInMarket: number;
+    trades: number;
+    closedTrades: number;
+    winRate: number | null;
+    openTrade: { since: string; return: number } | null;
+    folds: { from: string; short: number; long: number }[];
+    equity: { date: string; strategy: number; holding: number }[];
+  };
+  timingPValue: number;
+  shuffles: number;
+}
+
 export interface MarketRiskRow {
   coinId: string;
   asOf: string;

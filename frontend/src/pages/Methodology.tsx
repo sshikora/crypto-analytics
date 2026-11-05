@@ -4,9 +4,9 @@ import { useQuery } from '@apollo/client';
 import { Formula } from '../components/Formula';
 import { Disclaimer } from '../components/Disclaimer';
 import { SEO } from '../components/SEO';
-import { GET_REGIME_MODEL, GET_RISK_SUMMARY, GET_SCENARIO_TAIL_RISK } from '../services/queries';
+import { GET_REGIME_MODEL, GET_RISK_SUMMARY, GET_SCENARIO_TAIL_RISK, GET_SIGNALS_EVIDENCE } from '../services/queries';
 import { track } from '../services/analytics';
-import { RegimeModel, RiskSummary, Scenario } from '../types/crypto';
+import { RegimeModel, RiskSummary, Scenario, SignalSummary } from '../types/crypto';
 
 const SOURCE = 'https://github.com/sshikora/crypto-analytics/blob/master';
 
@@ -18,6 +18,7 @@ const SECTIONS = [
   { id: 'value-at-risk', title: 'Value at Risk and expected shortfall' },
   { id: 'backtesting', title: 'VaR backtesting' },
   { id: 'monte-carlo', title: 'Monte Carlo scenarios' },
+  { id: 'signal-backtests', title: 'Signal backtests' },
   { id: 'performance', title: 'Return, drawdown and beta' },
   { id: 'regime', title: 'Regime' },
   { id: 'hidden-markov', title: 'Hidden Markov model' },
@@ -75,13 +76,15 @@ export default function Methodology() {
   const btcRegime: RegimeModel | undefined = regimeData?.regimeModel ?? undefined;
   const { data: scenarioData } = useQuery(GET_SCENARIO_TAIL_RISK, { variables: { coinId: 'bitcoin' } });
   const btcScenario: Scenario | undefined = scenarioData?.scenario ?? undefined;
+  const { data: signalsData } = useQuery(GET_SIGNALS_EVIDENCE, { variables: { coinId: 'bitcoin' } });
+  const btcSignals: SignalSummary | undefined = signalsData?.signals ?? undefined;
 
   useEffect(() => {
     track('view_methodology', { section: location.hash.slice(1) || 'top' });
   }, [location.hash]);
 
   // The live panels arrive after the first render and push later sections down, so scroll again once they load
-  const liveLoaded = [btc, btcRegime, btcScenario].filter(Boolean).length;
+  const liveLoaded = [btc, btcRegime, btcScenario, btcSignals].filter(Boolean).length;
   useEffect(() => {
     if (location.hash) document.getElementById(location.hash.slice(1))?.scrollIntoView();
   }, [location.hash, liveLoaded]);
@@ -110,7 +113,7 @@ export default function Methodology() {
           <div className="space-y-2">
             <h1 className="text-3xl font-bold text-gray-900">Methodology</h1>
             <p className="text-gray-600">
-              How each number on the Risk and Scenario tabs is estimated, what it assumes, and how it is checked. Every model runs
+              How each number on the Risk, Signals and Scenario tabs is estimated, what it assumes, and how it is checked. Every model runs
               nightly on stored daily closes and is validated against an independent Python implementation.
             </p>
             <Disclaimer />
@@ -412,6 +415,103 @@ export default function Methodology() {
             )}
           </Section>
 
+          <Section
+            id="signal-backtests"
+            title="Signal backtests"
+            code={['backend/src/models/signals.ts', 'backend/src/models/backtest.ts', 'backend/src/models/sharpeInference.ts', 'backend/src/services/signalService.ts']}
+          >
+            <p>
+              The Signals tab backtests 15 moving-average crossovers on each coin: a short average of 1, 5, 10 or 20 days
+              against a long one of 20, 30, 50 or 100. A crossover holds the coin while the short average is above the long
+              one and nothing otherwise. Each night the job tests them on the year of stored closes, from the first day the
+              100-day average exists.
+            </p>
+            <p>
+              <strong>Costs.</strong> Trades happen at the close and pay a fraction <Formula inline tex="c" /> of the amount
+              traded, 0.15% for fee plus slippage:
+            </p>
+            <Formula tex="r^{net}_{t+1} = w_t R_{t+1} - c\, |w_t - w_{t-1}|, \qquad w_t \in \{0, 1\}" />
+            <p>
+              <strong>Walk-forward.</strong> Every 30 days the crossover with the highest Sharpe ratio over the previous 120
+              days is chosen and followed for the next 30. Every day reported was unseen when its crossover was picked, and
+              switching crossovers pays its trading cost. A round trip runs from the day a position opens to the day it
+              closes and pays both costs.
+            </p>
+            <p>
+              <strong>Probabilistic Sharpe ratio</strong> (Bailey and López de Prado, 2012): the probability that the true
+              Sharpe ratio exceeds a benchmark, allowing for skewness and fat tails, with per-day Sharpe ratios:
+            </p>
+            <Formula tex="PSR(SR^*) = \Phi\left(\frac{(\widehat{SR} - SR^*)\sqrt{T - 1}}{\sqrt{1 - \hat\gamma_3 \widehat{SR} + \tfrac{\hat\gamma_4 - 1}{4}\widehat{SR}^2}}\right)" />
+            <p>
+              <strong>Deflated Sharpe ratio</strong> (Bailey and López de Prado, 2014): keeping the best of{' '}
+              <Formula inline tex="N" /> crossovers flatters it, so the benchmark is the best Sharpe ratio expected from{' '}
+              <Formula inline tex="N" /> crossovers with no skill. Similar crossovers are nearly the same strategy, so the 15
+              are counted as <Formula inline tex="\hat N" /> independent ones from their average correlation{' '}
+              <Formula inline tex="\bar\rho" />, as in the paper's appendix:
+            </p>
+            <Formula tex="SR_0 = \sqrt{V}\left((1 - \gamma)\,\Phi^{-1}\left(1 - \tfrac1{\hat N}\right) + \gamma\, \Phi^{-1}\left(1 - \tfrac{1}{\hat N e}\right)\right), \qquad \hat N = \bar\rho + (1 - \bar\rho) M" />
+            <p>
+              <strong>Timing test.</strong> The deflated Sharpe ratio asks whether the Sharpe ratio is above zero, and a
+              coin that rose all year passes without any timing. So the job also reruns the whole 15-crossover search 200
+              times on the coin's own daily returns in shuffled order, which keeps its trend and spread of daily moves and
+              removes any order to time. The p-value is the share of reruns whose best crossover did at least as well, a
+              permutation test in the spirit of White's (2000) reality check.
+            </p>
+            <p>
+              <strong>A year on 70 coins.</strong> With daily volatility of at least 0.5% and a full year to November 2026,
+              at 0.15% a trade:
+            </p>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs text-gray-500">
+                    <th className="pr-4 py-1 font-medium">Best of 15 crossovers</th>
+                    <th className="pr-4 py-1 font-medium">Coins passing</th>
+                    <th className="py-1 font-medium">Passing on shuffled prices with no trend</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    ['Probabilistic Sharpe ratio above 0.95', '8.6%', '11.5%'],
+                    ['Deflated Sharpe ratio above 0.95, 15 trials', '5.7%', '1.1%'],
+                    ['Deflated Sharpe ratio above 0.95, implied trials (about 4)', '7.1%', '2.6%'],
+                    ['Timing test p below 0.05', '1 coin', ''],
+                  ].map(([test, coins, shuffled]) => (
+                    <tr key={test} className="border-t border-gray-100">
+                      <td className="pr-4 py-1">{test}</td>
+                      <td className="pr-4 py-1">{coins}</td>
+                      <td className="py-1">{shuffled}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p>
+              Without deflating, the best crossover passed on pure noise more than twice as often as a 5% test should, and
+              counting all 15 as independent overcorrected. The coins that passed the deflated test had mostly risen anyway.
+              The timing test found one coin below 0.05 where chance alone would give three or four, and walk-forward
+              crossovers had a median Sharpe ratio of 0.32 against 0.35 for holding over the same days. On this evidence
+              the crossovers describe the trend rather than predict it.
+            </p>
+            <p className="text-sm text-gray-600">
+              Limits: one year, so 145 days or so out of sample per coin and no 200-day crossover; costs are a flat rate at
+              the close, while spreads widen when crossovers fire; shuffling also removes volatility clustering; and the
+              coins move together, so 70 coins are far fewer than 70 independent tests.
+            </p>
+            {btcSignals && (
+              <div className="rounded-lg bg-gray-50 p-3 text-sm">
+                <p className="text-xs font-medium text-gray-500 mb-2">Live on Bitcoin, daily closes up to {btcSignals.asOf}</p>
+                <p>
+                  Best crossover {btcSignals.best.short === 1 ? 'price' : `${btcSignals.best.short}d`} / {btcSignals.best.long}d,
+                  Sharpe {btcSignals.best.sharpe.toFixed(2)} · deflated Sharpe ratio {pct(btcSignals.best.deflatedSharpe, 0)} with
+                  about {btcSignals.impliedTrials.toFixed(1)} independent trials · timing p = {btcSignals.timingPValue.toFixed(2)} ·
+                  walk-forward Sharpe {btcSignals.walkForward.strategy.sharpe.toFixed(2)} against{' '}
+                  {btcSignals.walkForward.holding.sharpe.toFixed(2)} holding over {btcSignals.walkForward.days} days
+                </p>
+              </div>
+            )}
+          </Section>
+
           <Section id="performance" title="Return, drawdown and beta" code={['backend/src/models/performance.ts']}>
             <p>On daily simple returns, with the risk-free rate taken as 0, the usual convention for crypto:</p>
             <Formula tex="\text{Sharpe} = \frac{\bar R}{s_R}\sqrt{N}, \qquad \text{Sortino} = \frac{\bar R}{\sqrt{\frac{1}{n}\sum_t \min(R_t, 0)^2}}\sqrt{N}, \qquad \text{Calmar} = \frac{\left(P_n / P_1\right)^{N/(n-1)} - 1}{\left|\text{MDD}\right|}" />
@@ -587,6 +687,7 @@ export default function Methodology() {
                     ['Regime', 'pandas rolling mean, rolling std and rank', '1e-12'],
                     ['Hidden Markov', 'enumerating every state path; hmmlearn; statsmodels', 'recursions 1e-12, EM steps 1e-9, likelihood 1e-9'],
                     ['Monte Carlo', "numpy's SFC64; scipy Kolmogorov-Smirnov tests; closed forms", 'generator bit for bit; paths 1e-12'],
+                    ['Signal backtests', 'pandas rolling mean; the deflated Sharpe ratio paper\'s worked example', 'positions and walk-forward choices identical; returns 1e-15; Sharpe tests 1e-12'],
                   ].map(([model, against, tolerance]) => (
                     <tr key={model} className="border-t border-gray-100">
                       <td className="pr-4 py-1">{model}</td>
@@ -618,11 +719,17 @@ export default function Methodology() {
               <a href={`${SOURCE}/validation/notebooks/monte_carlo.ipynb`} className="text-primary-600 hover:text-primary-700 font-mono">
                 monte_carlo.ipynb
               </a>
+              ,{' '}
+              <a href={`${SOURCE}/validation/notebooks/backtest.ipynb`} className="text-primary-600 hover:text-primary-700 font-mono">
+                backtest.ipynb
+              </a>
             </p>
           </Section>
 
           <Section id="references" title="References">
             <ol className="list-decimal pl-5 space-y-1 text-sm text-gray-700">
+              <li>Bailey, D. H. and López de Prado, M. (2012). The Sharpe ratio efficient frontier. <em>Journal of Risk</em>, 15(2), 3–44.</li>
+              <li>Bailey, D. H. and López de Prado, M. (2014). The deflated Sharpe ratio: correcting for selection bias, backtest overfitting and non-normality. <em>Journal of Portfolio Management</em>, 40(5), 94–107.</li>
               <li>Barone-Adesi, G., Giannopoulos, K. and Vosper, L. (1999). VaR without correlations for portfolios of derivative securities. <em>Journal of Futures Markets</em>, 19(5), 583–602.</li>
               <li>Baum, L. E., Petrie, T., Soules, G. and Weiss, N. (1970). A maximization technique occurring in the statistical analysis of probabilistic functions of Markov chains. <em>Annals of Mathematical Statistics</em>, 41(1), 164–171.</li>
               <li>Bollerslev, T. (1986). Generalized autoregressive conditional heteroskedasticity. <em>Journal of Econometrics</em>, 31(3), 307–327.</li>
@@ -636,12 +743,14 @@ export default function Methodology() {
               <li>Kupiec, P. H. (1995). Techniques for verifying the accuracy of risk measurement models. <em>Journal of Derivatives</em>, 3(2), 73–84.</li>
               <li>Lanczos, C. (1964). A precision approximation of the gamma function. <em>SIAM Journal on Numerical Analysis, Series B</em>, 1, 86–96.</li>
               <li>Ljung, G. M. and Box, G. E. P. (1978). On a measure of lack of fit in time series models. <em>Biometrika</em>, 65(2), 297–303.</li>
+              <li>Lo, A. W. (2002). The statistics of Sharpe ratios. <em>Financial Analysts Journal</em>, 58(4), 36–52.</li>
               <li>Marsaglia, G. and Tsang, W. W. (2000). A simple method for generating gamma variables. <em>ACM Transactions on Mathematical Software</em>, 26(3), 363–372.</li>
               <li>Press, W. H., Teukolsky, S. A., Vetterling, W. T. and Flannery, B. P. (2007). <em>Numerical Recipes</em>, 3rd edition. Cambridge University Press.</li>
               <li>Rabiner, L. R. (1989). A tutorial on hidden Markov models and selected applications in speech recognition. <em>Proceedings of the IEEE</em>, 77(2), 257–286.</li>
               <li>Schwarz, G. (1978). Estimating the dimension of a model. <em>Annals of Statistics</em>, 6(2), 461–464.</li>
               <li>Sharpe, W. F. (1966). Mutual fund performance. <em>Journal of Business</em>, 39(1), 119–138.</li>
               <li>Sortino, F. A. and van der Meer, R. (1991). Downside risk. <em>Journal of Portfolio Management</em>, 17(4), 27–31.</li>
+              <li>White, H. (2000). A reality check for data snooping. <em>Econometrica</em>, 68(5), 1097–1126.</li>
             </ol>
           </Section>
         </div>

@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { strategyReturns, walkForward } from './backtest';
+import { roundTrips, shuffledPrices, strategyReturns, walkForward } from './backtest';
+import { Random } from './random';
 import { simpleReturns } from './returns';
 import { deflatedSharpe, expectedMaximumSharpe, impliedTrials, periodSharpe, probabilisticSharpe } from './sharpeInference';
 import { crossoverPositions, movingAverage } from './signals';
@@ -18,7 +19,14 @@ interface BacktestFixture {
   deflatedSharpe: number;
   impliedTrials: number;
   deflatedSharpeImplied: number;
-  walkForward: { train: number; test: number; chosen: number[]; positions: number[]; returns: number[] };
+  walkForward: {
+    train: number;
+    test: number;
+    chosen: number[];
+    positions: number[];
+    returns: number[];
+    roundTrips: { start: number; end: number; ret: number; open: boolean }[];
+  };
 }
 
 const fixture = JSON.parse(
@@ -147,5 +155,39 @@ describe('Sharpe ratio inference', () => {
     const bars = [2, 10, 100, 1000].map(n => expectedMaximumSharpe(n, 1));
     bars.slice(1).forEach((bar, i) => expect(bar).toBeGreaterThan(bars[i]));
     expect(deflatedSharpe(best, evaluated.map(periodSharpe))).toBeLessThan(probabilisticSharpe(best, 0));
+  });
+});
+
+describe('round trips', () => {
+  it('match the reference on the walk-forward positions', () => {
+    const { positions, returns } = fixture.walkForward;
+    const trips = roundTrips(positions, returns);
+    expect(trips.map(t => [t.start, t.end, t.open])).toEqual(fixture.walkForward.roundTrips.map(t => [t.start, t.end, t.open]));
+    trips.forEach((t, i) => expect(Math.abs(t.return - fixture.walkForward.roundTrips[i].ret)).toBeLessThan(1e-14));
+  });
+
+  it('pay to buy and to sell, and leave a final trade open', () => {
+    const positions = [0, 1, 1, 0, 0, 1, 1];
+    const net = [0, -0.01 + 0.1, 0.05, -0.01, 0, -0.01, 0.02];
+    const trips = roundTrips(positions, net);
+    expect(trips.map(t => [t.start, t.end, t.open])).toEqual([[1, 3, false], [5, 6, true]]);
+    expect(trips[0].return).toBeCloseTo(1.09 * 1.05 * 0.99 - 1, 15);
+    expect(trips[1].return).toBeCloseTo(0.99 * 1.02 - 1, 15);
+  });
+});
+
+describe('shuffled prices', () => {
+  const shuffled = shuffledPrices(prices, new Random(7));
+
+  it('keep the start, the end and every daily move', () => {
+    expect(shuffled[0]).toBe(prices[0]);
+    expect(Math.abs(shuffled[shuffled.length - 1] / prices[prices.length - 1] - 1)).toBeLessThan(1e-12);
+    const moves = (x: number[]) => x.slice(1).map((p, i) => Math.log(p / x[i])).sort((a, b) => a - b);
+    expect(largestGap(moves(shuffled), moves(prices))).toBeLessThan(1e-12);
+  });
+
+  it('change the order, the same way for the same seed', () => {
+    expect(shuffled).not.toEqual(prices);
+    expect(shuffledPrices(prices, new Random(7))).toEqual(shuffled);
   });
 });
