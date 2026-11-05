@@ -1,6 +1,7 @@
 import { coinGeckoService } from '../services/coinGeckoService';
 import { computeRiskSummary, loadBenchmarkPrices, MarketRiskRow, marketRiskRow, RISK_SUMMARY_VERSION } from '../services/riskService';
-import { saveMarketSnapshot, saveRiskSummary } from '../repositories/coinMetricsRepository';
+import { computeScenario, SCENARIO_VERSION } from '../services/scenarioService';
+import { saveMarketSnapshot, saveRiskSummary, saveScenario } from '../repositories/coinMetricsRepository';
 import { withRetry } from './retry';
 
 export interface MetricsOptions {
@@ -17,7 +18,7 @@ export interface MetricsSummary {
   failed: string[];
 }
 
-// Computes and stores the risk summary for the same top-100 universe the price ingest covers
+// Computes and stores the risk summary and Monte Carlo scenario for the same top-100 universe the price ingest covers
 export async function computeMetrics(options: MetricsOptions = {}): Promise<MetricsSummary> {
   const { universeSize = 100, retryDelaysMs = [30_000, 60_000], now = new Date() } = options;
 
@@ -37,6 +38,9 @@ export async function computeMetrics(options: MetricsOptions = {}): Promise<Metr
       }
       await saveRiskSummary(riskSummary.asOf, riskSummary, RISK_SUMMARY_VERSION, computedAt);
       marketRows.push(marketRiskRow(riskSummary.asOf, riskSummary));
+      // Null when the coin has too little history to fit the models; the Scenario tab then says so
+      const scenario = await computeScenario(coin.id, now.getTime());
+      if (scenario) await saveScenario(scenario, SCENARIO_VERSION, computedAt);
       summary.written++;
     } catch (error: any) {
       console.error(`[compute-metrics] ${coin.id} failed: ${error?.message ?? error}`);

@@ -269,6 +269,67 @@ export const GET_REGIME_MODEL = gql`
   }
 `;
 
+export const GET_SCENARIO = gql`
+  query GetScenario($coinId: String!) {
+    scenario(coinId: $coinId) {
+      coinId
+      asOf
+      startPrice
+      observations
+      paths
+      quantiles
+      models {
+        model
+        startingVolatility
+        fan {
+          day
+          quantiles
+        }
+        horizons {
+          days
+          mean
+          standardError
+          tailRisk {
+            confidence
+            valueAtRisk
+            expectedShortfall
+          }
+          drawdownProbabilities {
+            threshold
+            probability
+          }
+          distribution {
+            lower
+            upper
+            probability
+          }
+        }
+      }
+    }
+  }
+`;
+
+// The Methodology page's live line needs only each model's tail risk
+export const GET_SCENARIO_TAIL_RISK = gql`
+  query GetScenarioTailRisk($coinId: String!) {
+    scenario(coinId: $coinId) {
+      coinId
+      asOf
+      models {
+        model
+        horizons {
+          days
+          tailRisk {
+            confidence
+            valueAtRisk
+            expectedShortfall
+          }
+        }
+      }
+    }
+  }
+`;
+
 export const GET_MARKET_RISK = gql`
   query GetMarketRisk {
     marketRisk {

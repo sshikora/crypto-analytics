@@ -107,6 +107,34 @@ export interface RegimeModel {
   history: { dates: string[]; filtered: number[]; smoothed: number[] };
 }
 
+export type ScenarioModelName = 'garchBootstrap' | 'studentT' | 'normal';
+
+export interface ScenarioHorizon {
+  days: number;
+  mean: number;
+  standardError: number;
+  tailRisk: { confidence: number; valueAtRisk: number; expectedShortfall: number }[];
+  drawdownProbabilities: { threshold: number; probability: number }[];
+  distribution: { lower: number; upper: number; probability: number }[];
+}
+
+export interface ScenarioModel {
+  model: ScenarioModelName;
+  startingVolatility: number | null;
+  fan: { day: number; quantiles: number[] }[];
+  horizons: ScenarioHorizon[];
+}
+
+export interface Scenario {
+  coinId: string;
+  asOf: string;
+  startPrice: number;
+  observations: number;
+  paths: number;
+  quantiles: number[];
+  models: ScenarioModel[];
+}
+
 export interface MarketRiskRow {
   coinId: string;
   asOf: string;

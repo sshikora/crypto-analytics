@@ -1,14 +1,12 @@
 import { useState } from 'react';
 import { MetricCard, MetricInfo } from './MetricCard';
 import { ValueAtRiskSummary, VarMethod, VarMethodResult } from '../types/crypto';
+import { formatDollars, readPosition, savePosition } from '../services/position';
 
 interface ValueAtRiskPanelProps {
   valueAtRisk: ValueAtRiskSummary;
   dataWindow: string;
 }
-
-const POSITION_STORAGE_KEY = 'cql.positionUsd';
-const DEFAULT_POSITION = 10_000;
 
 const METHOD_DETAILS: Record<VarMethod, { label: string; model: string; assumptions: string[] }> = {
   historical: {
@@ -45,23 +43,6 @@ const METHOD_DETAILS: Record<VarMethod, { label: string; model: string; assumpti
   },
 };
 
-function readPosition(): number {
-  try {
-    const stored = Number(localStorage.getItem(POSITION_STORAGE_KEY));
-    return stored > 0 ? stored : DEFAULT_POSITION;
-  } catch {
-    return DEFAULT_POSITION;
-  }
-}
-
-function formatDollars(amount: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: amount >= 100 ? 0 : 2,
-  }).format(amount);
-}
-
 function formatPValue(p: number): string {
   return p < 0.001 ? '< 0.001' : p.toFixed(3);
 }
@@ -82,11 +63,7 @@ export const ValueAtRiskPanel: React.FC<ValueAtRiskPanelProps> = ({ valueAtRisk,
     const amount = Number(value);
     if (!(amount > 0)) return;
     setPosition(amount);
-    try {
-      localStorage.setItem(POSITION_STORAGE_KEY, String(amount));
-    } catch {
-      // Storage can be unavailable (private browsing); the amount still applies for this visit
-    }
+    savePosition(amount);
   };
 
   const info = (result: VarMethodResult): MetricInfo => {

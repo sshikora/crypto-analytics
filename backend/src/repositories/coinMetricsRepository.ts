@@ -1,6 +1,7 @@
 import { PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { dynamodb } from '../db/dynamodb';
 import type { MarketRiskRow, RegimeModel, RiskSummary } from '../services/riskService';
+import type { Scenario } from '../services/scenarioService';
 
 export interface StoredRiskSummary {
   riskSummary: RiskSummary;
@@ -12,6 +13,13 @@ export interface StoredRiskSummary {
 const MARKET_KEY = '__market__';
 // Written by the Python fit-regimes job as a JSON string
 const REGIME_MODEL_PREFIX = '__hmm__';
+const SCENARIO_PREFIX = '__scenario__';
+
+export interface StoredScenario {
+  scenario: Scenario;
+  version: number;
+  computedAt: string;
+}
 
 export interface StoredMarketSnapshot {
   rows: MarketRiskRow[];
@@ -93,4 +101,29 @@ export async function getLatestMarketSnapshot(): Promise<StoredMarketSnapshot | 
     })
   );
   return (result.Items?.[0] as StoredMarketSnapshot | undefined) ?? null;
+}
+
+// Stored as a JSON string: about 40 KB of numbers, which would otherwise be thousands of DynamoDB attributes
+export async function saveScenario(scenario: Scenario, version: number, computedAt: string): Promise<void> {
+  await dynamodb.send(
+    new PutCommand({
+      TableName: tableName(),
+      Item: { coinId: SCENARIO_PREFIX + scenario.coinId, date: scenario.asOf, version, computedAt, scenario: JSON.stringify(scenario) },
+    })
+  );
+}
+
+export async function getLatestScenario(coinId: string): Promise<StoredScenario | null> {
+  const result = await dynamodb.send(
+    new QueryCommand({
+      TableName: tableName(),
+      KeyConditionExpression: '#coinId = :coinId',
+      ExpressionAttributeNames: { '#coinId': 'coinId' },
+      ExpressionAttributeValues: { ':coinId': SCENARIO_PREFIX + coinId },
+      ScanIndexForward: false,
+      Limit: 1,
+    })
+  );
+  const row = result.Items?.[0];
+  return row ? { scenario: JSON.parse(row.scenario), version: row.version, computedAt: row.computedAt } : null;
 }

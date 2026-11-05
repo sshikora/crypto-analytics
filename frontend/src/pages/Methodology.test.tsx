@@ -77,6 +77,7 @@ describe('Methodology', () => {
       'GARCH(1,1) and diagnostics',
       'Value at Risk and expected shortfall',
       'VaR backtesting',
+      'Monte Carlo scenarios',
       'Return, drawdown and beta',
       'Regime',
       'Hidden Markov model',
@@ -121,6 +122,28 @@ describe('Methodology', () => {
     renderPage();
 
     expect(screen.getByText(/7% chance of the turbulent state · calm 30% volatility, about 13 days · turbulent 82% volatility, about 2\.8 days/)).toBeInTheDocument();
+  });
+
+  it('shows the live 30-day VaR from each scenario model for Bitcoin', () => {
+    const tail = (at95: number) => [7, 30, 90].map(days => ({ days, tailRisk: [{ confidence: 0.95, valueAtRisk: at95 * Math.sqrt(days / 30), expectedShortfall: 0 }] }));
+    vi.mocked(useQuery).mockReturnValue({
+      data: {
+        riskSummary: bitcoin,
+        scenario: {
+          asOf: '2026-11-05',
+          models: [
+            { model: 'garchBootstrap', horizons: tail(0.154) },
+            { model: 'studentT', horizons: tail(0.165) },
+            { model: 'normal', horizons: tail(0.155) },
+          ],
+        },
+      },
+    } as never);
+
+    renderPage();
+
+    expect(screen.getByText('30-day 95% VaR: GARCH bootstrap 15.4% · Student-t 16.5% · Normal 15.5%')).toBeInTheDocument();
+    expect(screen.getByText('Monte Carlo')).toBeInTheDocument();
   });
 
   it('explains why the threshold badge was kept', () => {

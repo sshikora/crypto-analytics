@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { computeMetrics } from './computeMetrics';
 import { coinGeckoService } from '../services/coinGeckoService';
 import { computeRiskSummary, loadBenchmarkPrices, RISK_SUMMARY_VERSION, RiskSummary } from '../services/riskService';
-import { saveMarketSnapshot, saveRiskSummary } from '../repositories/coinMetricsRepository';
+import { saveMarketSnapshot, saveRiskSummary, saveScenario } from '../repositories/coinMetricsRepository';
+import { computeScenario, Scenario, SCENARIO_VERSION } from '../services/scenarioService';
 
 vi.mock('../services/coinGeckoService', () => ({ coinGeckoService: { getMarketData: vi.fn() } }));
 vi.mock('../services/riskService', async (importOriginal) => ({
@@ -10,7 +11,15 @@ vi.mock('../services/riskService', async (importOriginal) => ({
   computeRiskSummary: vi.fn(),
   loadBenchmarkPrices: vi.fn(),
 }));
-vi.mock('../repositories/coinMetricsRepository', () => ({ saveRiskSummary: vi.fn(), saveMarketSnapshot: vi.fn() }));
+vi.mock('../services/scenarioService', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/scenarioService')>()),
+  computeScenario: vi.fn(),
+}));
+vi.mock('../repositories/coinMetricsRepository', () => ({
+  saveRiskSummary: vi.fn(),
+  saveMarketSnapshot: vi.fn(),
+  saveScenario: vi.fn(),
+}));
 
 const now = new Date('2026-10-26T01:00:00Z');
 const benchmark = [{ date: '2026-10-26', timestamp: 0, price: 80000 }];
@@ -38,6 +47,28 @@ describe('computeMetrics', () => {
       if (coinId === 'broken') throw new Error('throttled');
       return summaryFor(coinId, coinId === 'brand-new' ? null : '2026-10-26');
     });
+    vi.mocked(computeScenario).mockImplementation(async (coinId) =>
+      coinId === 'ethereum' ? null : ({ coinId, asOf: '2026-10-26' } as Scenario)
+    );
+  });
+
+  it("stores each coin's scenario when it has enough history", async () => {
+    await computeMetrics({ now, retryDelaysMs: [] });
+
+    expect(computeScenario).toHaveBeenCalledWith('bitcoin', now.getTime());
+    expect(saveScenario).toHaveBeenCalledTimes(1);
+    expect(saveScenario).toHaveBeenCalledWith(
+      { coinId: 'bitcoin', asOf: '2026-10-26' },
+      SCENARIO_VERSION,
+      '2026-10-26T01:00:00.000Z'
+    );
+  });
+
+  it('counts a coin whose scenario fails as failed', async () => {
+    vi.mocked(computeScenario).mockRejectedValueOnce(new Error('did not converge'));
+    const result = await computeMetrics({ now, retryDelaysMs: [] });
+    expect(result.failed).toEqual(['bitcoin', 'broken']);
+    expect(result.written).toBe(1);
   });
 
   it('stores a summary for each coin with prices, under its price date and the current version', async () => {
