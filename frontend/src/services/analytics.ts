@@ -7,6 +7,7 @@ interface AnalyticsEvents {
   create_alert: { coinSymbol: string; ruleType: string; emailEnabled: boolean };
   signup: Record<string, never>;
   view_methodology: { section: string };
+  view_research: { slug: string };
   run_scenario: { coinId: string; model: string; days: number };
 }
 
