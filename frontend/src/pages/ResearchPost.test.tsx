@@ -40,6 +40,7 @@ describe('ResearchPost', () => {
   it('loads the post body and records the view', async () => {
     renderAt('/research/moving-average-crossovers');
     expect(screen.getByRole('heading', { level: 1, name: 'Do Moving-Average Crossovers Time Crypto?' })).toBeInTheDocument();
+    expect(screen.getByText('By Seth Shikora · November 12, 2026')).toBeInTheDocument();
     expect(await screen.findByText('Why the best backtest lies', {}, { timeout: 5000 })).toBeInTheDocument();
     expect(track).toHaveBeenCalledWith('view_research', { slug: 'moving-average-crossovers' });
     expect(useQuery).toHaveBeenCalled();

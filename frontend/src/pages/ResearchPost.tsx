@@ -7,6 +7,8 @@ import { LoadingSpinner } from '../components/LoadingSpinner';
 import { findPost } from '../research/posts';
 import { track } from '../services/analytics';
 
+const AUTHOR = 'Seth Shikora';
+
 export const ResearchPost = () => {
   const { slug } = useParams<{ slug: string }>();
   const post = findPost(slug);
@@ -40,6 +42,7 @@ export const ResearchPost = () => {
           headline: post.title,
           description: post.summary,
           datePublished: post.date,
+          author: { '@type': 'Person', name: AUTHOR },
           url: `https://cryptoquantlab.com/research/${post.slug}`,
         }}
       />
@@ -49,7 +52,9 @@ export const ResearchPost = () => {
             ← Research
           </Link>
           <h1 className="text-3xl font-bold text-gray-900">{post.title}</h1>
-          <p className="text-sm text-gray-500">{format(parseISO(post.date), 'MMMM d, yyyy')}</p>
+          <p className="text-sm text-gray-500">
+            By {AUTHOR} · {format(parseISO(post.date), 'MMMM d, yyyy')}
+          </p>
           <Disclaimer />
         </div>
         <Suspense fallback={<LoadingSpinner />}>
