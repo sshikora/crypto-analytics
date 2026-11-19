@@ -34,6 +34,7 @@ describe('Header', () => {
     expect(screen.getByText('Markets')).toBeInTheDocument();
     expect(screen.getByText('About')).toBeInTheDocument();
     expect(screen.getByText('Methodology')).toBeInTheDocument();
+    expect(screen.getByText('Research')).toBeInTheDocument();
   });
 
   it('shows sign in and sign up buttons when not authenticated', () => {
@@ -54,7 +55,7 @@ describe('Header', () => {
       const menu = document.getElementById('mobile-menu')!;
       expect(button).toHaveAttribute('aria-expanded', 'true');
       expect(button).toHaveAttribute('aria-controls', 'mobile-menu');
-      for (const label of ['Dashboard', 'Markets', 'About', 'Methodology', 'Help', 'Sign In', 'Sign Up']) {
+      for (const label of ['Dashboard', 'Markets', 'About', 'Methodology', 'Research', 'Help', 'Sign In', 'Sign Up']) {
         expect(within(menu).getByRole('link', { name: label })).toBeInTheDocument();
       }
 

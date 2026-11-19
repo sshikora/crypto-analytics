@@ -9,6 +9,8 @@ import { CryptoDetail } from './pages/CryptoDetail';
 import { Markets } from './pages/Markets';
 import { About } from './pages/About';
 import { Help } from './pages/Help';
+import { Research } from './pages/Research';
+import { ResearchPost } from './pages/ResearchPost';
 import { Login } from './pages/Login';
 import { SignUp } from './pages/SignUp';
 import { ForgotPassword } from './pages/ForgotPassword';
@@ -66,6 +68,8 @@ function App() {
                           </Suspense>
                         }
                       />
+                      <Route path="/research" element={<Research />} />
+                      <Route path="/research/:slug" element={<ResearchPost />} />
                       <Route path="/crypto/:symbol" element={<CryptoDetail />} />
                       <Route path="/login" element={<Login />} />
                       <Route path="/signup" element={<SignUp />} />

@@ -2,7 +2,7 @@
 
 Risk analytics for the 100 largest cryptocurrencies: realized and forecast volatility, GARCH with diagnostics, one-day Value at Risk and expected shortfall with out-of-sample backtests, regimes, Monte Carlo scenarios of the next 7 to 90 days, and moving-average crossovers backtested walk-forward with deflated Sharpe ratios and a permutation test, plus portfolio construction that isn't on the site yet. The models are implemented in TypeScript and checked against an independent Python reference built on numpy, scipy, statsmodels, `arch`, scikit-learn and PyPortfolioOpt. The hidden Markov model is fitted in Python by a nightly job and checked against hmmlearn and statsmodels.
 
-**Live:** https://cryptoquantlab.com — open any coin and choose the **Risk**, **Signals** or **Scenario** tab. The [Markets page](https://cryptoquantlab.com/markets) sorts the top 100 by volatility, drawdown and VaR, and shows each coin's regime. The [Methodology page](https://cryptoquantlab.com/methodology) has every model's formulas, assumptions, validation and references, next to today's numbers for Bitcoin.
+**Live:** https://cryptoquantlab.com — open any coin and choose the **Risk**, **Signals** or **Scenario** tab. The [Markets page](https://cryptoquantlab.com/markets) sorts the top 100 by volatility, drawdown and VaR, and shows each coin's regime. The [Methodology page](https://cryptoquantlab.com/methodology) has every model's formulas, assumptions, validation and references, next to today's numbers for Bitcoin. The [Research page](https://cryptoquantlab.com/research) has write-ups of the studies behind them, starting with [whether moving-average crossovers time crypto](https://cryptoquantlab.com/research/moving-average-crossovers).
 
 ## What it computes
 
@@ -209,7 +209,8 @@ backend/
   src/resolvers/     GraphQL resolvers; schema in src/schema/graphql.ts
   src/test/fixtures/ Fixtures written by validation/
 frontend/
-  src/pages/         Dashboard, Markets, Methodology, coin page (Overview, Risk, Signals and Scenario tabs)
+  src/pages/         Dashboard, Markets, Methodology, Research, coin page (Overview, Risk, Signals and Scenario tabs)
+  src/research/      Research posts and the study data they chart
   src/components/    MetricCard, ValueAtRiskPanel, GarchPanel, charts
 batch/
   cql_batch/         Hidden Markov model and the nightly fit-regimes job
