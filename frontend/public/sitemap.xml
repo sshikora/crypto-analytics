@@ -21,8 +21,14 @@
   </url>
   <url>
     <loc>https://cryptoquantlab.com/research</loc>
-    <lastmod>2026-11-12</lastmod>
+    <lastmod>2026-11-20</lastmod>
     <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://cryptoquantlab.com/research/value-at-risk-backtest</loc>
+    <lastmod>2026-11-20</lastmod>
+    <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
