@@ -11,6 +11,14 @@ export interface ResearchPost {
 
 export const POSTS: ResearchPost[] = [
   {
+    slug: 'value-at-risk-backtest',
+    title: 'Does Crypto Value at Risk Hold Up Out of Sample?',
+    date: '2026-11-20',
+    summary:
+      'One-day VaR on Bitcoin and 10-day Monte Carlo VaR on 83 coins, backtested out of sample. Every model overstated the risk, and 1,467 forecasts held only about 18 independent periods.',
+    Body: lazy(() => import('./ValueAtRiskBacktest')),
+  },
+  {
     slug: 'moving-average-crossovers',
     title: 'Do Moving-Average Crossovers Time Crypto?',
     date: '2026-11-12',
