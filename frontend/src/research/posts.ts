@@ -11,6 +11,14 @@ export interface ResearchPost {
 
 export const POSTS: ResearchPost[] = [
   {
+    slug: 'minimum-variance-weight-cap',
+    title: 'Why a Minimum-Variance Crypto Portfolio Needs a Weight Cap',
+    date: '2026-11-21',
+    summary:
+      'Long-only portfolios of the 20 largest coins, backtested for seven months. Minimum variance nearly halved volatility by holding mostly TRON, and its risk forecast failed when TRON fell. A 20% cap kept two-thirds of the reduction.',
+    Body: lazy(() => import('./MinimumVarianceWeightCap')),
+  },
+  {
     slug: 'value-at-risk-backtest',
     title: 'Does Crypto Value at Risk Hold Up Out of Sample?',
     date: '2026-11-20',
