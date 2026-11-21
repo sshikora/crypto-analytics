@@ -21,7 +21,8 @@ sys.path.insert(0, str(ROOT))
 from cql_validation import portfolio as pf  # noqa: E402
 
 FIXTURE_DIR = ROOT.parent / "backend" / "src" / "test" / "fixtures" / "portfolio"
-CASES = {"factor_250x12": (250, 12), "wide_40x30": (40, 30)}
+# Days, assets and a maximum weight that binds on minimum variance and the frontier
+CASES = {"factor_250x12": (250, 12, 0.15), "wide_40x30": (40, 30, 0.1)}
 FRONTIER_POINTS = 7
 
 
@@ -36,7 +37,7 @@ def main() -> None:
     FIXTURE_DIR.mkdir(parents=True, exist_ok=True)
     rng = np.random.default_rng(2026)
 
-    for name, (days, assets) in CASES.items():
+    for name, (days, assets, cap) in CASES.items():
         r = simulated_returns(days, assets, rng)
         cov, shrinkage = pf.ledoit_wolf(r)
         library = LedoitWolf().fit(r)
@@ -57,6 +58,8 @@ def main() -> None:
         minimum = pf.minimum_variance(cov)
         parity = pf.risk_parity(cov)
         frontier = pf.efficient_frontier(cov, mean, FRONTIER_POINTS)
+        capped = pf.minimum_variance(cov, cap)
+        capped_frontier = pf.efficient_frontier(cov, mean, FRONTIER_POINTS, cap)
         fixture = {
             "name": name,
             "generatedBy": "validation/scripts/make_portfolio_fixtures.py",
@@ -75,6 +78,14 @@ def main() -> None:
                     {"weights": w.tolist(), "expectedReturn": float(w @ mean), "volatility": float(np.sqrt(w @ cov @ w))}
                     for w in frontier
                 ],
+                "capped": {
+                    "maxWeight": cap,
+                    "minimumVariance": capped.tolist(),
+                    "frontier": [
+                        {"weights": w.tolist(), "expectedReturn": float(w @ mean), "volatility": float(np.sqrt(w @ cov @ w))}
+                        for w in capped_frontier
+                    ],
+                },
             },
             "scikitLearn": {"shrinkage": float(library.shrinkage_), "largestRelativeGap": float(gap)},
             "pyPortfolioOpt": {"shrinkage": float(other_shrinkage), "largestRelativeGap": float(correlated_gap)},
@@ -85,7 +96,8 @@ def main() -> None:
             f"{name}: shrinkage {shrinkage:.4f} (scikit-learn gap {gap:.1e}), constant correlation {correlated_shrinkage:.4f} "
             f"(PyPortfolioOpt gap {correlated_gap:.1e}); minimum variance holds "
             f"{(minimum > 0).sum()} of {assets}; risk parity contributions within {np.ptp(pf.risk_contributions(parity, cov)):.1e}; "
-            f"frontier holds {[int((w > 0).sum()) for w in frontier]}"
+            f"frontier holds {[int((w > 0).sum()) for w in frontier]}; capped at {cap:.0%}, minimum variance holds "
+            f"{(capped > 0).sum()} ({(capped >= cap).sum()} at the cap), frontier {[int((w > 0).sum()) for w in capped_frontier]}"
         )
 
 

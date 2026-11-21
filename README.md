@@ -102,17 +102,18 @@ Antithetic pairs cut the variance of the mean return 27–60 times but leave VaR
 
 ### Long-only portfolios of the 20 largest coins
 
-Each portfolio was set from the previous 90 or 180 days and held for 30, over about six months, averaged across six rebalancing schedules:
+Each portfolio was set from the previous 90 or 180 days and held for 30, over about seven months, averaged across six rebalancing schedules:
 
-| Portfolio | Annualized volatility | Effective holdings | Realized ÷ forecast volatility |
+| Portfolio | Annualized volatility | Effective holdings | Realized ÷ forecast volatility (mean, worst period) |
 |---|---|---|---|
-| Minimum variance (any of three covariance estimates) | 21.7–21.9% | 1.9–3.6 | 0.98–1.31 |
-| Risk parity | 34.5% | 13.5 | 0.96 |
-| Cap-weighted | 38.1% | 2.0 | 0.90 |
-| Equal weight | 44.6% | 20 | 0.99 |
-| Highest Sharpe on the frontier | 51.3% | 3.2 | 0.96 |
+| Minimum variance (any of three covariance estimates) | 21.2–21.5% | 2.0–3.6 | 0.92–1.14, 1.5–3.1 |
+| Minimum variance, each coin capped at 20% | 27.5% | 6.1 | 1.01, 1.7 |
+| Risk parity | 35.2% | 13.2 | 1.00, 1.7 |
+| Cap-weighted | 40.1% | 2.0 | 0.94, 1.6 |
+| Equal weight | 46.2% | 20 | 1.01, 1.7 |
+| Highest Sharpe on the frontier | 54.1% | 3.1 | 0.98, 1.4 |
 
-Minimum variance cut volatility a lot, but by holding very few coins, mostly TRON. Without TRON it still had the lowest volatility, 26–28%. Its most concentrated versions understated their own risk by 25–31%, so the portfolio page will need a weight cap. Optimizing on a year of mean returns gave the riskiest portfolio and traded half of it each month.
+Minimum variance cut volatility almost in half, but by holding very few coins, mostly TRON. Without TRON it still had the lowest volatility, 26–28%. When TRON fell 7–8% on two days at the end of October, the versions holding 59–80% of it saw two to three times their forecast volatility; outside those weeks they overstated their risk. A 20% cap per coin kept about two-thirds of the reduction and its worst period was close to cap-weighted's. Optimizing on a year of mean returns gave the riskiest portfolio and traded half of it each month.
 
 In simulation, shrinking towards the identity, scikit-learn's default, made minimum variance worse than no shrinkage, because it pulls correlations towards zero. Shrinking towards a constant correlation roughly halved the excess risk. On real coins the three estimates were within two percentage points, in the same order.
 
