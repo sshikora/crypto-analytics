@@ -9,7 +9,8 @@ Every 30 days, the 20 largest coins by market cap with daily volatility of at le
 are chosen, each strategy sets weights from that window's returns, and the portfolio is held without trading until
 the next rebalance. Two window lengths and three starting offsets check that one schedule doesn't decide the result;
 all of them cover the same test days. Minimum variance holds mostly TRON, the least volatile large coin, so every run
-is repeated without it to see whether the result depends on that one coin.
+is repeated without it to see whether the result depends on that one coin. Minimum variance on constant-correlation
+shrinkage also runs with each coin capped at 10% and 20% of the portfolio, to see what concentration was buying.
 """
 
 import sys
@@ -30,6 +31,7 @@ WINDOWS = [90, 180]
 OFFSETS = [0, 10, 20]
 UNIVERSES = {"top_20": [], "top_20_without_tron": ["tron"]}
 MIN_DAILY_VOLATILITY = 0.005
+MAX_WEIGHTS = {"min_variance_cap_10": 0.1, "min_variance_cap_20": 0.2}
 FRONTIER_POINTS = 25
 DAYS_PER_YEAR = 365.25
 
@@ -51,6 +53,8 @@ def weights(strategy: str, r: np.ndarray, caps: np.ndarray, covariances: dict) -
     if strategy == "inverse_volatility":
         inverse = 1 / r.std(axis=0, ddof=1)
         return inverse / inverse.sum(), shrunk
+    if strategy in MAX_WEIGHTS:
+        return pf.minimum_variance(shrunk, MAX_WEIGHTS[strategy]), shrunk
     if strategy.startswith("min_variance_"):
         cov = covariances[strategy.removeprefix("min_variance_")]
         return pf.minimum_variance(cov), cov
@@ -66,6 +70,7 @@ STRATEGIES = [
     "min_variance_sample",
     "min_variance_identity",
     "min_variance_constant_correlation",
+    *MAX_WEIGHTS,
     "risk_parity",
     "max_sharpe",
 ]

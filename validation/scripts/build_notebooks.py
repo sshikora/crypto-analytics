@@ -1144,9 +1144,10 @@ The models are [`covariance.ts`](../../backend/src/models/covariance.ts) and \
 [`cql_validation/portfolio.py`](../cql_validation/portfolio.py), uses scipy's optimizers rather than the backend's \
 method, and its covariance estimates are checked against scikit-learn and PyPortfolioOpt.
 
-**The main result is that minimum variance cut realized volatility by about 30–40% against a cap-weighted portfolio, \
-but by holding the equivalent of two to five coins, and its most concentrated versions understated their own risk by a \
-quarter or more.** Which covariance estimate it used mattered little on real coins. In simulation, shrinking towards a \
+**The main result is that minimum variance cut realized volatility almost in half against a cap-weighted portfolio, \
+but by holding the equivalent of two to four coins, mostly TRON, and when TRON fell 7–8% on two days at the end of \
+October its realized volatility was two to three times its own forecast. Capping each coin at 20% kept about \
+two-thirds of the reduction and removed that failure.** Which covariance estimate it used mattered little on real coins. In simulation, shrinking towards a \
 constant correlation helped and shrinking towards the identity hurt. Optimizing on estimated returns always gave the \
 riskiest portfolio."""),
         code("""\
@@ -1250,6 +1251,9 @@ All portfolios here are fully invested and long-only: $w \\ge 0$, $\\sum_i w_i =
 - **Minimum variance** minimizes $w' \\Sigma w$. At the optimum every held asset has the same marginal variance \
 $(\\Sigma w)_i$, and every asset left out has at least as much. The backend uses the primal active-set method \
 (Nocedal and Wright, Algorithm 16.3), and the tests check those conditions to 1e-12.
+- **A maximum weight** $w_i \\le u$ can be added to minimum variance and the frontier. Assets held at the cap then \
+have at most the common marginal variance of the assets between the bounds, and the active-set method holds each \
+weight at zero, at the cap, or free. The cap must be at least $1/n$; at exactly $1/n$ every asset gets equal weight.
 - **Risk parity** gives each asset an equal share of variance, $w_i (\\Sigma w)_i = w'\\Sigma w / n$. Spinu (2013) \
 shows this is the minimizer of the convex $\\tfrac12 y'\\Sigma y - \\tfrac1n \\sum_i \\log y_i$ after scaling $y$ to \
 sum to 1, so Newton's method finds it reliably.
@@ -1266,6 +1270,7 @@ marked = {
     "equal weight": np.full(len(mean), 1 / len(mean)),
     "minimum variance": pf.minimum_variance(cov),
     "risk parity": pf.risk_parity(cov),
+    "minimum variance, 20% cap": pf.minimum_variance(cov, 0.2),
     "highest Sharpe": max(frontier, key=lambda w: (w @ mean) / np.sqrt(w @ cov @ w)),
 }
 fig, ax = plt.subplots()
@@ -1283,8 +1288,8 @@ pd.DataFrame({
     for name, w in marked.items()
 }).T"""),
         md("""\
-Minimum variance holds a few assets and gives them very unequal shares of risk. Risk parity holds everything with \
-equal risk shares. The highest-Sharpe point depends entirely on the estimated means, which is the problem the backtest \
+Minimum variance holds a few assets and gives them very unequal shares of risk; the 20% cap forces it to spread the \
+weight over more of them. Risk parity holds everything with equal risk shares. The highest-Sharpe point depends entirely on the estimated means, which is the problem the backtest \
 shows.
 
 ## 3. Out of sample on the 20 largest coins
@@ -1292,10 +1297,10 @@ shows.
 [`scripts/portfolio_backtest.py`](../scripts/portfolio_backtest.py) rebalances every 30 days. At each rebalance it \
 takes the 20 largest coins by market cap whose daily volatility over the estimation window is at least 0.5%, which \
 removes stablecoins and tokenized funds, sets each strategy's weights from that window, and holds without trading \
-until the next rebalance. Minimum variance runs on each of the three covariance estimates; risk parity, the \
-highest-Sharpe portfolio and the risk forecasts of the simple weightings use constant-correlation shrinkage. Every \
-combination of a 90 or 180-day window and three starting offsets covers the same test days, from late April to early \
-November 2026."""),
+until the next rebalance. Minimum variance runs on each of the three covariance estimates, and on \
+constant-correlation shrinkage with each coin capped at 10% and at 20%; risk parity, the highest-Sharpe portfolio and \
+the risk forecasts of the simple weightings use constant-correlation shrinkage. Every combination of a 90 or 180-day \
+window and three starting offsets covers the same test days, from late April to November 20, 2026."""),
         code("""\
 summary = pd.read_csv("../data/portfolio_backtest_summary.csv")
 periods = pd.read_csv("../data/portfolio_backtest_periods.csv")
@@ -1303,6 +1308,7 @@ names = {
     "cap_weight": "cap-weighted", "equal_weight": "equal weight", "inverse_volatility": "inverse volatility",
     "min_variance_sample": "minimum variance, sample", "min_variance_identity": "minimum variance, identity",
     "min_variance_constant_correlation": "minimum variance, constant correlation",
+    "min_variance_cap_20": "minimum variance, 20% cap", "min_variance_cap_10": "minimum variance, 10% cap",
     "risk_parity": "risk parity", "max_sharpe": "highest Sharpe",
 }
 columns = {
@@ -1322,17 +1328,39 @@ table("top_20")"""),
         md("""\
 Averaged over the six schedules:
 
-- **Minimum variance had the lowest volatility by far,** about 22% a year against 38% for cap-weighted and 45% for \
+- **Minimum variance had the lowest volatility by far,** about 21% a year against 40% for cap-weighted and 46% for \
 equal weight, and the smallest drawdown, whichever covariance it used. It did so by holding the equivalent of two to \
 four coins.
-- **Concentrated portfolios understated their own risk.** On the sample and constant-correlation estimates, minimum \
-variance's realized volatility was 25–31% above its own forecast. The identity estimate spread the weights more \
-and forecast its risk accurately.
+- **Its risk forecast failed when its main holding did.** On average, the sample and constant-correlation versions' \
+realized volatility was 9–15% above forecast, but all of that came from the rebalances of October 9 to 29; outside \
+them it was 4–11% below. Those held 59–80% TRON, which fell 6.7% on October 31 and 7.8% on November 1, and their realized volatility was two \
+to three times the forecast. The identity estimate spread the weights more and its worst period was 1.5 times.
+- **A 20% cap kept about two-thirds of the reduction:** 27.5% volatility against 21.3% uncapped and 40.1% \
+cap-weighted, with about six effective holdings. Its forecast was right on average and its worst period was 1.7 times \
+the forecast, close to cap-weighted's 1.6. A 10% cap gave up most of the reduction, ending level with risk parity.
 - **The highest-Sharpe portfolio was the riskiest,** with the deepest drawdown and about half the portfolio traded \
 each month.
 - **Risk parity sat in between,** below every simple weighting on volatility while holding all 20 coins.
 
-Returns are shown for completeness: over six months, they say almost nothing about which strategy is better.
+Returns are shown for completeness: over seven months, they say almost nothing about which strategy is better.
+
+Realized over forecast volatility, per rebalance, for the portfolios that rely on the forecast most:"""),
+        code("""\
+periods["realized / forecast"] = periods.realized_daily_volatility / periods.forecast_daily_volatility
+top = periods[periods.universe == "top_20"]
+october = top[top.start.between("2026-10-09", "2026-10-29")]
+shown = ["min_variance_sample", "min_variance_constant_correlation", "min_variance_identity", "min_variance_cap_20",
+         "min_variance_cap_10", "risk_parity", "cap_weight"]
+pd.DataFrame({
+    "mean": top.groupby("strategy")["realized / forecast"].mean(),
+    "median": top.groupby("strategy")["realized / forecast"].median(),
+    "worst": top.groupby("strategy")["realized / forecast"].max(),
+    "mean, October rebalances": october.groupby("strategy")["realized / forecast"].mean(),
+    "largest weight, October rebalances": october.groupby("strategy").largest_weight.mean(),
+}).loc[shown].rename(index=names)"""),
+        md("""\
+The median period is at or a little below 1 for every portfolio. The concentrated ones differ in the tail: one coin's bad week \
+is most of their risk, and a covariance estimated from calm months can't see it coming.
 
 ### Is it one coin?
 
@@ -1341,11 +1369,12 @@ backtest without TRON:"""),
         code("""\
 table("top_20_without_tron")"""),
         md("""\
-Without TRON, minimum variance still has the lowest volatility, 26–28% against 39% for cap-weighted, so the result \
+Without TRON, minimum variance still has the lowest volatility, 26–28% against 41% for cap-weighted, so the result \
 isn't one coin. The covariance estimates now separate a little, in the order the simulation predicts: constant \
-correlation lowest and identity highest, about two percentage points apart. Risk parity is now slightly above \
-cap-weighted, though still below equal weight and inverse volatility. The highest-Sharpe portfolio had the best \
-return here and a middling one with TRON, which is what noise looks like.
+correlation lowest and identity highest, about two and a half percentage points apart. The caps cost more here, with \
+the 20% cap at 34%. Risk parity is now level with cap-weighted, though still below equal weight and inverse \
+volatility. The highest-Sharpe portfolio's return ranked third here and near the bottom with TRON, which is what \
+noise looks like.
 
 The schedules agree closely, so these averages aren't one lucky start date:"""),
         code("""\
@@ -1357,9 +1386,10 @@ grid.rename(index=names).map(lambda v: f"{v:.1%}")"""),
 - **Use constant-correlation shrinkage.** It was best in simulation, about as good as the others on real coins and \
 best without TRON, and it works when a user holds more coins than there are days of shared history. The identity target, the common default, \
 is the wrong one for assets that move together this much.
-- **Cap the weights.** Minimum variance's lower risk is real here, but it comes from very few holdings, and those \
-portfolios underestimated their risk. A maximum weight per coin is the usual fix and isn't implemented yet. Until then, \
-the page should show weights and each coin's share of risk next to the volatility.
+- **Cap the weights, at 20% by default.** Minimum variance's lower risk is real here, but uncapped it comes from \
+very few holdings, and its forecast failed when the largest of them fell. A 20% cap kept about two-thirds of the \
+reduction without that failure. The page should still show weights and each coin's share of risk next to the \
+volatility.
 - **Don't recommend the highest-Sharpe portfolio.** Show the frontier as what the past year's averages imply, not as \
 advice.
 - **Risk parity is the diversified option,** holding every coin with less risk than equal weight or inverse \
@@ -1369,7 +1399,8 @@ volatility, and about the same as cap-weighted.
 
 - **Survivorship.** The coins come from today's top 100, so coins that fell out of the top 20 and then out of the top \
 100 are missing from earlier rebalances.
-- **A short test.** About six months and seven rebalances, with no transaction costs; turnover is reported instead.
+- **A short test.** About seven months and seven or eight rebalances, with no transaction costs; turnover is \
+reported instead. One episode, TRON's fall at the end of October, decides the forecast results.
 - **Long-only and fully invested.** No cash, no leverage and no shorting, which matches what most holders can do.
 - **Daily closes at 00:00 UTC.** Correlations from daily closes understate how assets that trade around the clock \
 move together within a day."""),
