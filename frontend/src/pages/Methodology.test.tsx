@@ -1,5 +1,7 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
 import { useQuery } from '@apollo/client';
@@ -51,6 +53,12 @@ const bitcoin = {
   performance: null,
 };
 
+function readCsv(name: string) {
+  const lines = readFileSync(join(__dirname, '..', '..', '..', 'validation', 'data', name), 'utf8').trim().split('\n');
+  const header = lines[0].split(',');
+  return lines.slice(1).map(line => Object.fromEntries(line.split(',').map((v, i) => [header[i], v])));
+}
+
 function renderPage(path = '/methodology') {
   return render(
     <HelmetProvider>
@@ -82,6 +90,7 @@ describe('Methodology', () => {
       'Return, drawdown and beta',
       'Regime',
       'Hidden Markov model',
+      'Portfolio construction',
       'How the models are validated',
       'References',
     ]) {
@@ -212,5 +221,43 @@ describe('Methodology', () => {
     renderPage();
     expect(screen.getByRole('heading', { name: 'GARCH(1,1) and diagnostics' })).toBeInTheDocument();
     expect(screen.queryByText(/Live on Bitcoin/)).not.toBeInTheDocument();
+  });
+  it('reports the portfolio backtest as the validation data has it', () => {
+    renderPage();
+    const summary = readCsv('portfolio_backtest_summary.csv').filter(r => r.universe === 'top_20');
+    const periods = readCsv('portfolio_backtest_periods.csv').filter(r => r.universe === 'top_20');
+    const mean = (strategy: string, column: string) => {
+      const rows = summary.filter(r => r.strategy === strategy);
+      return rows.reduce((s, r) => s + Number(r[column]), 0) / rows.length;
+    };
+    const worst = (strategy: string) =>
+      Math.max(...periods.filter(r => r.strategy === strategy).map(r => Number(r.realized_daily_volatility) / Number(r.forecast_daily_volatility)));
+    const vol = (strategy: string) => `${(mean(strategy, 'annualized_volatility') * 100).toFixed(1)}%`;
+    const holdings = (strategy: string) => {
+      const h = mean(strategy, 'mean_effective_holdings');
+      return Number.isInteger(h) ? String(h) : h.toFixed(1);
+    };
+    const range = (values: string[], suffix = '') => {
+      const sorted = values.map(Number).sort((a, b) => a - b);
+      return `${sorted[0].toFixed(1)}–${sorted[sorted.length - 1].toFixed(1)}${suffix}`;
+    };
+    const uncapped = ['min_variance_sample', 'min_variance_constant_correlation', 'min_variance_identity'];
+
+    const table = within(screen.getByRole('columnheader', { name: 'Effective holdings' }).closest('table')!);
+    const row = (label: string) => [...table.getByRole('cell', { name: label }).closest('tr')!.cells].slice(1).map(c => c.textContent);
+    expect(row('Minimum variance, uncapped (three covariance estimates)')).toEqual([
+      `${range(uncapped.map(s => (mean(s, 'annualized_volatility') * 100).toFixed(1)))}%`,
+      range(uncapped.map(s => mean(s, 'mean_effective_holdings').toFixed(1))),
+      range(uncapped.map(s => worst(s).toFixed(1)), '×'),
+    ]);
+    for (const [label, strategy] of [
+      ['Minimum variance, 20% cap per coin', 'min_variance_cap_20'],
+      ['Risk parity', 'risk_parity'],
+      ['Cap-weighted', 'cap_weight'],
+      ['Equal weight', 'equal_weight'],
+      ['Highest Sharpe on the frontier', 'max_sharpe'],
+    ]) {
+      expect(row(label), label).toEqual([vol(strategy), holdings(strategy), `${worst(strategy).toFixed(1)}×`]);
+    }
   });
 });
