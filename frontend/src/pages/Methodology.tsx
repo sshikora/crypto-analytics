@@ -22,6 +22,7 @@ const SECTIONS = [
   { id: 'performance', title: 'Return, drawdown and beta' },
   { id: 'regime', title: 'Regime' },
   { id: 'hidden-markov', title: 'Hidden Markov model' },
+  { id: 'portfolios', title: 'Portfolio construction' },
   { id: 'validation', title: 'How the models are validated' },
   { id: 'references', title: 'References' },
 ] as const;
@@ -68,6 +69,16 @@ const METHOD_LABELS: Record<string, string> = {
   garchBootstrap: 'GARCH bootstrap',
 };
 
+// Top-20 backtest averages from validation/data/portfolio_backtest_summary.csv and _periods.csv; the test checks them
+const PORTFOLIO_BACKTEST = [
+  ['Minimum variance, uncapped (three covariance estimates)', '21.2–21.5%', '2.0–3.6', '1.5–3.1×'],
+  ['Minimum variance, 20% cap per coin', '27.5%', '6.1', '1.7×'],
+  ['Risk parity', '35.2%', '13.2', '1.7×'],
+  ['Cap-weighted', '40.1%', '2.0', '1.6×'],
+  ['Equal weight', '46.2%', '20', '1.7×'],
+  ['Highest Sharpe on the frontier', '54.1%', '3.1', '1.4×'],
+];
+
 export default function Methodology() {
   const location = useLocation();
   const { data } = useQuery(GET_RISK_SUMMARY, { variables: { coinId: 'bitcoin' } });
@@ -113,8 +124,9 @@ export default function Methodology() {
           <div className="space-y-2">
             <h1 className="text-3xl font-bold text-gray-900">Methodology</h1>
             <p className="text-gray-600">
-              How each number on the Risk, Signals and Scenario tabs is estimated, what it assumes, and how it is checked. Every model runs
-              nightly on stored daily closes and is validated against an independent Python implementation.
+              How each number on the Risk, Signals and Scenario tabs is estimated, what it assumes, and how it is checked, and the
+              portfolio models being built for a portfolio page. The tabs' models run nightly on stored daily closes, and every
+              model is validated against an independent Python implementation.
             </p>
             <Disclaimer />
           </div>
@@ -654,6 +666,109 @@ export default function Methodology() {
             )}
           </Section>
 
+          <Section
+            id="portfolios"
+            title="Portfolio construction"
+            code={['backend/src/models/covariance.ts', 'backend/src/models/portfolio.ts']}
+          >
+            <p>
+              These models are built and validated for a portfolio page that isn't on the site yet. The defaults below come
+              from a simulation and an out-of-sample backtest on the 20 largest coins.
+            </p>
+            <p>
+              <strong>Covariance shrinkage.</strong> With <Formula inline tex="p" /> coins and <Formula inline tex="n" /> days,
+              the sample covariance estimates <Formula inline tex="p(p+1)/2" /> numbers. An optimizer leans hardest on the
+              directions that look safest by chance, and with <Formula inline tex="n \le p" /> the matrix is singular. Ledoit
+              and Wolf shrink the maximum-likelihood estimate <Formula inline tex="S" /> towards a structured target{' '}
+              <Formula inline tex="F" />, with the intensity <Formula inline tex="\delta" /> estimated to minimize expected
+              squared error:
+            </p>
+            <Formula tex="\hat\Sigma = \delta F + (1 - \delta) S" />
+            <ul className="list-disc pl-5 space-y-2">
+              <li>
+                <strong>Identity target</strong>, scikit-learn's default: <Formula inline tex="F = \bar s I" />, with{' '}
+                <Formula inline tex="\bar s" /> the average variance. It pulls every correlation towards zero.
+              </li>
+              <li>
+                <strong>Constant-correlation target</strong>: it keeps each variance and sets every correlation to the
+                average, <Formula inline tex="\bar r" />.
+                <Formula tex="F_{ii} = s_{ii}, \qquad F_{ij} = \bar r \sqrt{s_{ii} s_{jj}}" />
+              </li>
+            </ul>
+            <p>
+              In a simulation with two common factors, like crypto's strong common moves, shrinking towards the identity made
+              the minimum-variance portfolio worse than no shrinkage at every window length: 13.3% more variance than the best
+              possible with 30 days of 20 assets, against 6.8% for the sample covariance. Constant correlation roughly halved
+              the sample's excess, to 3.3%, so it is the default.
+            </p>
+            <p>
+              <strong>Long-only portfolios.</strong> Weights are non-negative and sum to 1, and minimum variance and the
+              frontier can cap each one at <Formula inline tex="u" />:
+            </p>
+            <Formula tex="\begin{gathered} \min_w\; w'\hat\Sigma w \\ \text{subject to} \;\; \textstyle\sum_i w_i = 1, \;\; 0 \le w_i \le u \end{gathered}" />
+            <ul className="list-disc pl-5 space-y-2">
+              <li>
+                <strong>Minimum variance</strong> is solved by the primal active-set method (Nocedal and Wright, Algorithm
+                16.3). At the optimum, every coin strictly between the bounds has the same marginal variance{' '}
+                <Formula inline tex="(\hat\Sigma w)_i" />, every coin at zero has at least that much, and every coin at the
+                cap at most.
+              </li>
+              <li>
+                <strong>Risk parity</strong> gives each coin an equal share of variance. Following Spinu (2013), it is found by
+                Newton's method on a strictly convex problem, then scaled to sum to 1:
+                <Formula tex="\begin{gathered} w_i (\hat\Sigma w)_i = \frac{w'\hat\Sigma w}{p} \\ w = \frac{y}{\sum_i y_i} \\ y = \arg\min_{y > 0}\; \tfrac12 y'\hat\Sigma y - \tfrac1p \textstyle\sum_i \log y_i \end{gathered}" />
+              </li>
+              <li>
+                <strong>The efficient frontier</strong> is the minimum variance at evenly spaced target returns. Each point
+                minimizes <Formula inline tex="\tfrac12 w'\hat\Sigma w - t\, \mu' w" />, with <Formula inline tex="t" />{' '}
+                found by bisection, since the portfolio's return rises continuously with it.
+              </li>
+            </ul>
+            <p>
+              <strong>Out of sample.</strong> Every 30 days, the 20 largest coins by market cap with daily volatility of at
+              least 0.5% were chosen, each portfolio was set from the previous 90 or 180 days, and it was held without trading
+              until the next rebalance. Averages over six schedules, from late April to November 20, 2026:
+            </p>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs text-gray-500">
+                    <th className="pr-4 py-1 font-medium">Portfolio</th>
+                    <th className="pr-4 py-1 font-medium">Annualized volatility</th>
+                    <th className="pr-4 py-1 font-medium">Effective holdings</th>
+                    <th className="py-1 font-medium">Realized ÷ forecast volatility, worst period</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {PORTFOLIO_BACKTEST.map(([name, volatility, holdings, worst]) => (
+                    <tr key={name} className="border-t border-gray-100">
+                      <td className="pr-4 py-1">{name}</td>
+                      <td className="pr-4 py-1">{volatility}</td>
+                      <td className="pr-4 py-1">{holdings}</td>
+                      <td className="py-1">{worst}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-xs text-gray-500">
+              Effective holdings are <Formula inline tex="1 / \sum_i w_i^2" />: 20 for equal weights, 1 for a single coin.
+            </p>
+            <p>
+              Uncapped minimum variance cut volatility almost in half, but by holding two to four coins' worth, mostly TRON.
+              The October rebalances held 59–80% TRON, which fell 6.7% on October 31 and 7.8% on November 1, and their realized
+              volatility was two to three times the forecast. Outside October they overstated their risk. A 20% cap kept about
+              two-thirds of the reduction, and its worst period was close to cap-weighted's, so the portfolio page will default
+              to it. The highest-Sharpe portfolio, which leans on a year of average returns, was the riskiest and traded about
+              half its weight each month. The page will show it as what past averages imply, not as advice.
+            </p>
+            <p className="text-sm text-gray-600">
+              Limits: the coins come from today's top 100, so coins that have since fallen out are missing from earlier
+              rebalances; seven months and one episode decide the forecast results; there are no transaction costs; and
+              daily closes understate how coins that trade around the clock move together within a day.
+            </p>
+          </Section>
+
           <Section id="validation" title="How the models are validated">
             <p>
               Each model has a reference implementation in Python, written from the formulas above. A script runs it on a
@@ -688,6 +803,8 @@ export default function Methodology() {
                     ['Hidden Markov', 'enumerating every state path; hmmlearn; statsmodels', 'recursions 1e-12, EM steps 1e-9, likelihood 1e-9'],
                     ['Monte Carlo', "numpy's SFC64; scipy Kolmogorov-Smirnov tests; closed forms", 'generator bit for bit; paths 1e-12'],
                     ['Signal backtests', 'pandas rolling mean; the deflated Sharpe ratio paper\'s worked example', 'positions and walk-forward choices identical; returns 1e-15; Sharpe tests 1e-12'],
+                    ['Covariance shrinkage', 'scikit-learn LedoitWolf, PyPortfolioOpt', '1e-12'],
+                    ['Portfolios', 'scipy SLSQP, with the optimality conditions then solved exactly; closed forms', 'weights 1e-10 (minimum variance), 1e-8 (risk parity)'],
                   ].map(([model, against, tolerance]) => (
                     <tr key={model} className="border-t border-gray-100">
                       <td className="pr-4 py-1">{model}</td>
@@ -723,6 +840,10 @@ export default function Methodology() {
               <a href={`${SOURCE}/validation/notebooks/backtest.ipynb`} className="text-primary-600 hover:text-primary-700 font-mono">
                 backtest.ipynb
               </a>
+              ,{' '}
+              <a href={`${SOURCE}/validation/notebooks/portfolio.ipynb`} className="text-primary-600 hover:text-primary-700 font-mono">
+                portfolio.ipynb
+              </a>
             </p>
           </Section>
 
@@ -739,17 +860,23 @@ export default function Methodology() {
               <li>Dempster, A. P., Laird, N. M. and Rubin, D. B. (1977). Maximum likelihood from incomplete data via the EM algorithm. <em>Journal of the Royal Statistical Society B</em>, 39(1), 1–38.</li>
               <li>Glasserman, P. (2004). <em>Monte Carlo Methods in Financial Engineering</em>. Springer.</li>
               <li>Hamilton, J. D. (1989). A new approach to the economic analysis of nonstationary time series and the business cycle. <em>Econometrica</em>, 57(2), 357–384.</li>
+              <li>Jagannathan, R. and Ma, T. (2003). Risk reduction in large portfolios: why imposing the wrong constraints helps. <em>Journal of Finance</em>, 58(4), 1651–1683.</li>
               <li>J.P. Morgan/Reuters (1996). <em>RiskMetrics — Technical Document</em>, 4th edition.</li>
               <li>Kupiec, P. H. (1995). Techniques for verifying the accuracy of risk measurement models. <em>Journal of Derivatives</em>, 3(2), 73–84.</li>
               <li>Lanczos, C. (1964). A precision approximation of the gamma function. <em>SIAM Journal on Numerical Analysis, Series B</em>, 1, 86–96.</li>
+              <li>Ledoit, O. and Wolf, M. (2004). A well-conditioned estimator for large-dimensional covariance matrices. <em>Journal of Multivariate Analysis</em>, 88(2), 365–411.</li>
+              <li>Ledoit, O. and Wolf, M. (2004). Honey, I shrunk the sample covariance matrix. <em>Journal of Portfolio Management</em>, 30(4), 110–119.</li>
               <li>Ljung, G. M. and Box, G. E. P. (1978). On a measure of lack of fit in time series models. <em>Biometrika</em>, 65(2), 297–303.</li>
               <li>Lo, A. W. (2002). The statistics of Sharpe ratios. <em>Financial Analysts Journal</em>, 58(4), 36–52.</li>
+              <li>Markowitz, H. (1952). Portfolio selection. <em>Journal of Finance</em>, 7(1), 77–91.</li>
               <li>Marsaglia, G. and Tsang, W. W. (2000). A simple method for generating gamma variables. <em>ACM Transactions on Mathematical Software</em>, 26(3), 363–372.</li>
+              <li>Nocedal, J. and Wright, S. J. (2006). <em>Numerical Optimization</em>, 2nd edition. Springer.</li>
               <li>Press, W. H., Teukolsky, S. A., Vetterling, W. T. and Flannery, B. P. (2007). <em>Numerical Recipes</em>, 3rd edition. Cambridge University Press.</li>
               <li>Rabiner, L. R. (1989). A tutorial on hidden Markov models and selected applications in speech recognition. <em>Proceedings of the IEEE</em>, 77(2), 257–286.</li>
               <li>Schwarz, G. (1978). Estimating the dimension of a model. <em>Annals of Statistics</em>, 6(2), 461–464.</li>
               <li>Sharpe, W. F. (1966). Mutual fund performance. <em>Journal of Business</em>, 39(1), 119–138.</li>
               <li>Sortino, F. A. and van der Meer, R. (1991). Downside risk. <em>Journal of Portfolio Management</em>, 17(4), 27–31.</li>
+              <li>Spinu, F. (2013). An algorithm for computing risk parity weights. SSRN 2297383.</li>
               <li>White, H. (2000). A reality check for data snooping. <em>Econometrica</em>, 68(5), 1097–1126.</li>
             </ol>
           </Section>
