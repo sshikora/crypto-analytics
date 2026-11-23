@@ -2,15 +2,16 @@ import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { CryptoCard } from './CryptoCard';
-import { Cryptocurrency } from '../types/crypto';
+import { Cryptocurrency, MarketRiskRow } from '../types/crypto';
 
 interface SortableCryptoCardProps {
   id: string;
   crypto: Cryptocurrency;
+  risk?: MarketRiskRow;
   onClick: () => void;
 }
 
-export const SortableCryptoCard: React.FC<SortableCryptoCardProps> = ({ id, crypto, onClick }) => {
+export const SortableCryptoCard: React.FC<SortableCryptoCardProps> = ({ id, crypto, risk, onClick }) => {
   const {
     attributes,
     listeners,
@@ -28,8 +29,8 @@ export const SortableCryptoCard: React.FC<SortableCryptoCardProps> = ({ id, cryp
   };
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} className="relative">
-      <CryptoCard crypto={crypto} onClick={onClick} />
+    <div ref={setNodeRef} style={style} {...attributes} className="relative h-full">
+      <CryptoCard crypto={crypto} risk={risk} onClick={onClick} />
       {/* Drag handle in top-right corner */}
       <button
         ref={setActivatorNodeRef}

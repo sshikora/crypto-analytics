@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useQuery } from '@apollo/client';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   DndContext,
   closestCenter,
@@ -18,10 +18,27 @@ import {
 } from '@dnd-kit/sortable';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { SEO } from '../components/SEO';
-import { GET_TOP_CRYPTOCURRENCIES } from '../services/queries';
-import { Cryptocurrency } from '../types/crypto';
+import { GET_MARKET_RISK, GET_TOP_CRYPTOCURRENCIES } from '../services/queries';
+import { Cryptocurrency, MarketRiskRow } from '../types/crypto';
 import { useAuth } from '../context/AuthContext';
 import { SortableCryptoCard } from '../components/SortableCryptoCard';
+import { MarketToday } from '../components/MarketToday';
+import { LatestResearch } from '../components/LatestResearch';
+
+// Pegged to the dollar, so their risk numbers are noise; they stay selectable but are not shown by default
+const STABLECOINS = new Set([
+  'tether',
+  'usd-coin',
+  'usds',
+  'dai',
+  'ethena-usde',
+  'first-digital-usd',
+  'paypal-usd',
+  'usd1-wlfi',
+  'true-usd',
+  'ripple-usd',
+  'global-dollar',
+]);
 
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -32,6 +49,7 @@ export const Dashboard: React.FC = () => {
   const { data, loading, error, refetch } = useQuery(GET_TOP_CRYPTOCURRENCIES, {
     variables: { limit: 20 },
   });
+  const { data: riskData } = useQuery(GET_MARKET_RISK);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -42,12 +60,12 @@ export const Dashboard: React.FC = () => {
 
   const allCryptos: Cryptocurrency[] = data?.topCryptocurrencies || [];
 
-  // Initialize selected coins from preferences or default to top 6
+  // Initialize selected coins from preferences or default to the top 6 that aren't stablecoins
   useEffect(() => {
     if (preferences?.dashboardCoins && preferences.dashboardCoins.length > 0) {
       setSelectedCoins(preferences.dashboardCoins);
     } else if (allCryptos.length > 0 && selectedCoins.length === 0) {
-      const defaultCoins = allCryptos.slice(0, 6).map(c => c.symbol);
+      const defaultCoins = allCryptos.filter(c => !STABLECOINS.has(c.coinGeckoId)).slice(0, 6).map(c => c.symbol);
       setSelectedCoins(defaultCoins);
     }
   }, [preferences, allCryptos]);
@@ -109,58 +127,87 @@ export const Dashboard: React.FC = () => {
   const displayCryptos = selectedCoins
     .map(symbol => allCryptos.find(c => c.symbol === symbol))
     .filter((c): c is Cryptocurrency => c !== undefined);
+  const riskByCoin = new Map<string, MarketRiskRow>(
+    (riskData?.marketRisk?.rows ?? []).map((row: MarketRiskRow) => [row.coinId, row])
+  );
+  const marketCoins = allCryptos
+    .filter(c => !STABLECOINS.has(c.coinGeckoId))
+    .flatMap(crypto => {
+      const risk = riskByCoin.get(crypto.coinGeckoId);
+      return risk ? [{ crypto, risk }] : [];
+    });
 
   return (
     <>
       <SEO
-        title="Cryptocurrency Dashboard - CryptoQuantLab"
-        description="Track top cryptocurrencies including Bitcoin, Ethereum, and more. Real-time prices, market caps, and 24h changes on your customizable dashboard."
-        keywords="cryptocurrency dashboard, crypto prices, bitcoin price, ethereum price, live crypto data, crypto portfolio, BTC, ETH"
+        title="Crypto Risk Dashboard - CryptoQuantLab"
+        description="Volatility, Value at Risk and regime models for the largest cryptocurrencies, recomputed nightly and backtested out of sample, with research on what holds up."
+        keywords="crypto risk, crypto volatility, crypto value at risk, crypto regime, bitcoin volatility, ethereum volatility, crypto research"
         canonicalUrl="/"
       />
-      <div className="space-y-6">
-        <div className="flex flex-wrap justify-between items-center gap-4">
-          <h1 className="text-3xl font-bold text-gray-900">Cryptocurrency Dashboard</h1>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setShowCoinSelector(true)}
-            className="btn btn-secondary"
-          >
-            Customize Coins
-          </button>
-          <button
-            onClick={() => refetch()}
-            className="btn btn-primary"
-          >
-            Refresh Data
-          </button>
-        </div>
-      </div>
-
-      {isAuthenticated && (
-        <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-md text-sm">
-          Use the drag handle (⋮⋮⋮) in the top-right corner of each card to reorder your coins. Your preferences are saved automatically.
-        </div>
-      )}
-
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragEnd={handleDragEnd}
-      >
-        <SortableContext items={selectedCoins} strategy={rectSortingStrategy}>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {displayCryptos.map((crypto) => (
-              <SortableCryptoCard
-                key={crypto.symbol}
-                id={crypto.symbol}
-                crypto={crypto}
-                onClick={() => navigate(`/crypto/${crypto.symbol}`)}
-              />
-            ))}
+      <div className="space-y-8">
+        <div className="space-y-3 max-w-3xl">
+          <h1 className="text-3xl font-bold text-gray-900">Crypto risk, modeled nightly</h1>
+          <p className="text-gray-600">
+            Volatility forecasts, Value at Risk and regime models for the largest coins, recomputed every night from daily
+            closes and backtested out of sample. Open a coin for its VaR backtests, trading-signal tests and Monte Carlo
+            scenarios.
+          </p>
+          <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm font-medium">
+            <Link to="/methodology" className="text-primary-600 hover:text-primary-700">
+              How the models work →
+            </Link>
+            <Link to="/research" className="text-primary-600 hover:text-primary-700">
+              Research →
+            </Link>
           </div>
-        </SortableContext>
-      </DndContext>
+        </div>
+
+        {marketCoins.length > 0 && (
+          <MarketToday coins={marketCoins} totalCoins={allCryptos.length} computedAt={riskData.marketRisk.computedAt} />
+        )}
+
+        <section aria-labelledby="your-coins" className="space-y-3">
+          <div className="flex flex-wrap justify-between items-center gap-4">
+            <h2 id="your-coins" className="text-xl font-semibold text-gray-900">
+              {isAuthenticated ? 'Your coins' : 'Coins'}
+            </h2>
+            <button
+              onClick={() => setShowCoinSelector(true)}
+              className="btn btn-secondary"
+            >
+              Customize Coins
+            </button>
+          </div>
+
+          {isAuthenticated && (
+            <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-md text-sm">
+              Use the drag handle (⋮⋮⋮) in the top-right corner of each card to reorder your coins. Your preferences are saved automatically.
+            </div>
+          )}
+
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext items={selectedCoins} strategy={rectSortingStrategy}>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {displayCryptos.map((crypto) => (
+                  <SortableCryptoCard
+                    key={crypto.symbol}
+                    id={crypto.symbol}
+                    crypto={crypto}
+                    risk={riskByCoin.get(crypto.coinGeckoId)}
+                    onClick={() => navigate(`/crypto/${crypto.symbol}`)}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
+        </section>
+
+        <LatestResearch />
 
       {/* Coin Selector Modal */}
       {showCoinSelector && (
