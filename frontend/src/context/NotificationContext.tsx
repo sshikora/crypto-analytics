@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
 import { useQuery, useMutation, useApolloClient } from '@apollo/client';
 import { useAuth } from './AuthContext';
 import {
@@ -103,8 +103,8 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
   const [markAsReadMutation] = useMutation(MARK_NOTIFICATION_AS_READ);
   const [markAllAsReadMutation] = useMutation(MARK_ALL_NOTIFICATIONS_AS_READ);
 
-  const notifications: Notification[] = notificationsData?.notifications || [];
-  const notificationRules: NotificationRule[] = rulesData?.notificationRules || [];
+  const notifications: Notification[] = useMemo(() => notificationsData?.notifications || [], [notificationsData]);
+  const notificationRules: NotificationRule[] = useMemo(() => rulesData?.notificationRules || [], [rulesData]);
   const unreadCount: number = unreadCountData?.unreadNotificationCount || 0;
   const isLoading = notificationsLoading || rulesLoading;
   const error = notificationsError?.message || rulesError?.message || null;

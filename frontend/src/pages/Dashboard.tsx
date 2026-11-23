@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@apollo/client';
 import { Link, useNavigate } from 'react-router-dom';
 import {
@@ -58,15 +58,15 @@ export const Dashboard: React.FC = () => {
     })
   );
 
-  const allCryptos: Cryptocurrency[] = data?.topCryptocurrencies || [];
+  const allCryptos: Cryptocurrency[] = useMemo(() => data?.topCryptocurrencies || [], [data]);
 
   // Initialize selected coins from preferences or default to the top 6 that aren't stablecoins
   useEffect(() => {
     if (preferences?.dashboardCoins && preferences.dashboardCoins.length > 0) {
       setSelectedCoins(preferences.dashboardCoins);
-    } else if (allCryptos.length > 0 && selectedCoins.length === 0) {
+    } else if (allCryptos.length > 0) {
       const defaultCoins = allCryptos.filter(c => !STABLECOINS.has(c.coinGeckoId)).slice(0, 6).map(c => c.symbol);
-      setSelectedCoins(defaultCoins);
+      setSelectedCoins(current => (current.length === 0 ? defaultCoins : current));
     }
   }, [preferences, allCryptos]);
 

@@ -1,46 +1,76 @@
-import { Helmet } from 'react-helmet-async';
+import { Link } from 'react-router-dom';
+import { SEO } from '../components/SEO';
+
+const LINK = 'text-primary-600 hover:text-primary-700 font-medium';
 
 export const About = () => {
   return (
     <>
-      <Helmet>
-        <title>About - Crypto Quant Lab</title>
-        <meta
-          name="description"
-          content="Learn about Crypto Quant Lab's mission to provide comprehensive cryptocurrency analytics and market insights."
-        />
-      </Helmet>
+      <SEO
+        title="About - CryptoQuantLab"
+        description="CryptoQuantLab runs volatility, Value at Risk, regime and Monte Carlo models on the largest cryptocurrencies every night, validates each against an independent Python reference, and publishes what holds up."
+        canonicalUrl="/about"
+      />
 
       <div className="max-w-4xl mx-auto">
         <div className="card">
-          <h1 className="text-3xl font-bold text-gray-900 mb-6">About Crypto Quant Lab</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-6">About CryptoQuantLab</h1>
 
-          {/* Purpose Section */}
-          <section className="mb-8">
-            <h2 className="text-2xl font-semibold text-gray-800 mb-4">Our Mission</h2>
-            <div className="prose prose-gray max-w-none">
-              <p className="text-gray-700 mb-4">
-                Crypto Quant Lab is dedicated to building a comprehensive suite of analytics tools designed
-                specifically for cryptocurrency markets. Our platform empowers traders, investors, and
-                enthusiasts with real-time market data, technical indicators, and quantitative analysis tools
-                to make more informed decisions in the dynamic world of digital assets.
-              </p>
-              <p className="text-gray-700 mb-4">
-                We believe that access to professional-grade analytics should be available to everyone, not
-                just institutional investors. Our tools provide:
-              </p>
-              <ul className="list-disc pl-6 mb-4 text-gray-700">
-                <li>Real-time cryptocurrency price data and market metrics</li>
-                <li>Technical analysis indicators including moving averages and trend analysis</li>
-                <li>Market comparison tools to track multiple assets simultaneously</li>
-                <li>Customizable dashboards for personalized market monitoring</li>
-                <li>Historical price charts and performance tracking</li>
-              </ul>
-              <p className="text-gray-700">
-                Whether you're a day trader, long-term investor, or simply curious about cryptocurrency
-                markets, Crypto Quant Lab provides the insights you need to navigate this exciting space.
-              </p>
-            </div>
+          <section className="mb-8 space-y-4 text-gray-700">
+            <h2 className="text-2xl font-semibold text-gray-800">What it is</h2>
+            <p>
+              CryptoQuantLab is a risk analytics site for the 100 largest cryptocurrencies. Every night it takes the
+              latest daily closes and recomputes each coin&apos;s models:
+            </p>
+            <ul className="list-disc pl-6 space-y-1">
+              <li>Volatility: realized, EWMA, HAR-RV forecasts and GARCH(1,1)</li>
+              <li>
+                One-day Value at Risk and expected shortfall by four methods, each backtested with Kupiec and
+                Christoffersen tests
+              </li>
+              <li>Trend and volatility regimes, with a hidden Markov model alongside</li>
+              <li>Monte Carlo scenarios from 10,000 simulated price paths</li>
+              <li>Trading-signal backtests that test for timing skill against simply holding the coin</li>
+            </ul>
+            <p>
+              The point is to show what these models say and how far to trust them, not to tell anyone what to buy.
+            </p>
+          </section>
+
+          <section className="mb-8 space-y-4 text-gray-700">
+            <h2 className="text-2xl font-semibold text-gray-800">How it is checked</h2>
+            <p>
+              Every model is validated against an independent Python reference built on numpy, scipy, statsmodels, arch
+              and scikit-learn, most to within 1e-12. The{' '}
+              <Link to="/methodology" className={LINK}>
+                Methodology
+              </Link>{' '}
+              page gives each model&apos;s formulas, assumptions and validation, and the{' '}
+              <Link to="/research" className={LINK}>
+                Research
+              </Link>{' '}
+              posts report what held up out of sample and what didn&apos;t. The code, including the validation
+              notebooks, is on{' '}
+              <a href="https://github.com/sshikora/crypto-analytics" className={LINK}>
+                GitHub
+              </a>
+              .
+            </p>
+          </section>
+
+          <section className="mb-8 space-y-4 text-gray-700">
+            <h2 className="text-2xl font-semibold text-gray-800">Who builds it</h2>
+            <p>
+              CryptoQuantLab is built by Seth Shikora, a quantitative developer in Portland, Oregon. Seth has an MS in
+              Computational Finance (Risk Analysis) from the Oregon Graduate Institute and decades of software
+              engineering, including principal and lead roles at Amazon, Nike and Equinix and capital markets work on
+              DirectBooks, the bond origination platform used by major US banks.
+            </p>
+            <p>
+              <a href="https://www.linkedin.com/in/sethshikora/" className={LINK}>
+                Seth on LinkedIn
+              </a>
+            </p>
           </section>
 
           {/* Disclaimer Section */}
