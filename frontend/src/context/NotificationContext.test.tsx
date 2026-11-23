@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
-import { MockedProvider } from '@apollo/client/testing';
+import { MockedProvider, MockedResponse } from '@apollo/client/testing';
 import { ReactNode } from 'react';
 import { NotificationProvider, useNotifications } from './NotificationContext';
 import { AuthProvider } from './AuthContext';
@@ -62,7 +62,7 @@ const mockRule = {
   updatedAt: '2024-01-01T00:00:00Z',
 };
 
-const createWrapper = (mocks: any[]) => {
+const createWrapper = (mocks: MockedResponse[]) => {
   return ({ children }: { children: ReactNode }) => (
     <MockedProvider mocks={mocks}>
       <AuthProvider>

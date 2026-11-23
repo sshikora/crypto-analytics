@@ -54,6 +54,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   // Check for existing session on mount
   useEffect(() => {
     checkAuth();
+    // Runs once on mount; sign-in and sign-out update the session themselves
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const checkAuth = async () => {
@@ -105,12 +107,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const handleSignIn = async (email: string, password: string) => {
-    try {
-      await signIn({ username: email, password });
-      await checkAuth();
-    } catch (error) {
-      throw error;
-    }
+    await signIn({ username: email, password });
+    await checkAuth();
   };
 
   const handleSignUp = async (email: string, password: string, acceptedTerms: boolean) => {
@@ -118,72 +116,48 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       throw new Error('You must accept the Terms of Service to create an account.');
     }
 
-    try {
-      await signUp({
-        username: email,
-        password,
-        options: {
-          userAttributes: {
-            email,
-            'custom:terms_accepted': 'true',
-            'custom:terms_accepted_date': new Date().toISOString(),
-          },
+    await signUp({
+      username: email,
+      password,
+      options: {
+        userAttributes: {
+          email,
+          'custom:terms_accepted': 'true',
+          'custom:terms_accepted_date': new Date().toISOString(),
         },
-      });
-      track('signup', {});
-    } catch (error) {
-      throw error;
-    }
+      },
+    });
+    track('signup', {});
   };
 
   const handleConfirmSignUp = async (email: string, code: string) => {
-    try {
-      await confirmSignUp({ username: email, confirmationCode: code });
-    } catch (error) {
-      throw error;
-    }
+    await confirmSignUp({ username: email, confirmationCode: code });
   };
 
   const handleResendSignUpCode = async (email: string) => {
-    try {
-      await resendSignUpCode({ username: email });
-    } catch (error) {
-      throw error;
-    }
+    await resendSignUpCode({ username: email });
   };
 
   const handleSignOut = async () => {
-    try {
-      await signOut();
-      setUser(null);
-      setPreferences(null);
-      // Reset PostHog identity to track as anonymous
-      if (posthog) {
-        posthog.reset();
-      }
-    } catch (error) {
-      throw error;
+    await signOut();
+    setUser(null);
+    setPreferences(null);
+    // Reset PostHog identity to track as anonymous
+    if (posthog) {
+      posthog.reset();
     }
   };
 
   const handleResetPassword = async (email: string) => {
-    try {
-      await resetPassword({ username: email });
-    } catch (error) {
-      throw error;
-    }
+    await resetPassword({ username: email });
   };
 
   const handleConfirmResetPassword = async (email: string, code: string, newPassword: string) => {
-    try {
-      await confirmResetPassword({
-        username: email,
-        confirmationCode: code,
-        newPassword,
-      });
-    } catch (error) {
-      throw error;
-    }
+    await confirmResetPassword({
+      username: email,
+      confirmationCode: code,
+      newPassword,
+    });
   };
 
   const loadPreferencesInternal = async (userId: string) => {

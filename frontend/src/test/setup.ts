@@ -12,7 +12,7 @@ beforeAll(() => {
   const originalError = console.error;
   const originalWarn = console.warn;
 
-  console.error = (...args: any[]) => {
+  console.error = (...args: Parameters<typeof console.error>) => {
     const message = args[0]?.toString() || '';
 
     // Suppress expected React error boundary messages in tests
@@ -28,7 +28,7 @@ beforeAll(() => {
     originalError(...args);
   };
 
-  console.warn = (...args: any[]) => {
+  console.warn = (...args: Parameters<typeof console.warn>) => {
     const message = args[0]?.toString() || '';
 
     // Suppress React act warnings (false positives with async utilities)
